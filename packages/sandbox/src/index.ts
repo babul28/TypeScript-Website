@@ -22,8 +22,10 @@ type Monaco = typeof import("monaco-editor")
 export type SandboxConfig = {
   /** The default source code for the playground */
   text: string
-  /** Should it run the ts or js IDE services */
-  useJavaScript: boolean
+  /** @deprecated */
+  useJavaScript?: boolean
+  /** The default file for the plaayground  */
+  filetype: "js" | "ts" | "d.ts"
   /** Compiler options which are automatically just forwarded on */
   compilerOptions: CompilerOptions
   /** Optional monaco settings overrides */
@@ -48,7 +50,7 @@ export type SandboxConfig = {
   | { /** theID of a dom node to add monaco to */ elementToAppend: HTMLElement }
 )
 
-const languageType = (config: SandboxConfig) => (config.useJavaScript ? "javascript" : "typescript")
+const languageType = (config: SandboxConfig) => (config.filetype === "js" ? "javascript" : "typescript")
 
 // Basically android and monaco is pretty bad, this makes it less bad
 // See https://github.com/microsoft/pxt/pull/7099 for this, and the long
@@ -82,7 +84,7 @@ export function defaultPlaygroundSettings() {
     domID: "",
     compilerOptions: {},
     acquireTypes: true,
-    useJavaScript: false,
+    filetype: "ts",
     supportTwoslashCompilerOptions: false,
     logger: console,
   }
@@ -91,8 +93,7 @@ export function defaultPlaygroundSettings() {
 
 function defaultFilePath(config: SandboxConfig, compilerOptions: CompilerOptions, monaco: Monaco) {
   const isJSX = compilerOptions.jsx !== monaco.languages.typescript.JsxEmit.None
-  const fileExt = config.useJavaScript ? "js" : "ts"
-  const ext = isJSX ? fileExt + "x" : fileExt
+  const ext = isJSX && config.filetype !== "d.ts" ? config.filetype + "x" : config.filetype
   return "input." + ext
 }
 
@@ -122,7 +123,7 @@ export const createTypeScriptSandbox = (
   let compilerOptions: CompilerOptions
   if (!config.suppressAutomaticallyGettingCompilerFlags) {
     const params = new URLSearchParams(location.search)
-    let queryParamCompilerOptions = getCompilerOptionsFromParams(compilerDefaults, params)
+    let queryParamCompilerOptions = getCompilerOptionsFromParams(compilerDefaults, ts, params)
     if (Object.keys(queryParamCompilerOptions).length)
       config.logger.log("[Compiler] Found compiler options in query params: ", queryParamCompilerOptions)
     compilerOptions = { ...compilerDefaults, ...queryParamCompilerOptions }
@@ -130,8 +131,9 @@ export const createTypeScriptSandbox = (
     compilerOptions = compilerDefaults
   }
 
-  // Don't allow a state like allowJs = false, and useJavascript = true
-  if (config.useJavaScript) {
+  const isJSLang = config.filetype === "js"
+  // Don't allow a state like allowJs = false
+  if (isJSLang) {
     compilerOptions.allowJs = true
   }
 
@@ -147,11 +149,11 @@ export const createTypeScriptSandbox = (
   const monacoSettings = Object.assign({ model }, sharedEditorOptions, config.monacoSettings || {})
   const editor = monaco.editor.create(element, monacoSettings)
 
-  const getWorker = config.useJavaScript
+  const getWorker = isJSLang
     ? monaco.languages.typescript.getJavaScriptWorker
     : monaco.languages.typescript.getTypeScriptWorker
 
-  const defaults = config.useJavaScript
+  const defaults = isJSLang
     ? monaco.languages.typescript.javascriptDefaults
     : monaco.languages.typescript.typescriptDefaults
 
@@ -190,6 +192,7 @@ export const createTypeScriptSandbox = (
 
     if (config.supportTwoslashCompilerOptions) {
       const configOpts = getTwoSlashComplierOptions(code)
+      console.log("twoslash", configOpts)
       updateCompilerSettings(configOpts)
     }
 
@@ -412,6 +415,8 @@ export const createTypeScriptSandbox = (
     languageServiceDefaults: defaults,
     /** The path which represents the current file using the current compiler options */
     filepath: filePath.path,
+    /** Adds a file to the vfs used by the editor */
+    addLibraryToRuntime,
   }
 }
 

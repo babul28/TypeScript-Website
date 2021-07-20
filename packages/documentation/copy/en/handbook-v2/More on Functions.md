@@ -298,7 +298,7 @@ That's always a red flag, because it means callers wanting to specify type argum
 
 #### Type Parameters Should Appear Twice
 
-Sometimes we forget that function doesn't need to be generic:
+Sometimes we forget that a function might not need to be generic:
 
 ```ts twoslash
 function greet<Str extends string>(s: Str) {
@@ -560,13 +560,13 @@ interface User {
   admin: boolean;
 }
 declare const getDB: () => DB;
+// ---cut---
 interface DB {
   filterUsers(filter: (this: User) => boolean): User[];
 }
 
-// ---cut---
 const db = getDB();
-const admins = db.filterUsers(function () {
+const admins = db.filterUsers(function (this: User) {
   return this.admin;
 });
 ```
@@ -580,13 +580,13 @@ interface User {
   isAdmin: boolean;
 }
 declare const getDB: () => DB;
+// ---cut---
 interface DB {
   filterUsers(filter: (this: User) => boolean): User[];
 }
 
-// ---cut---
 const db = getDB();
-const admins = db.filterUsers(() => this.isAdmin);
+const admins = db.filterUsers(() => this.admin);
 ```
 
 ## Other Types to Know About
@@ -614,7 +614,7 @@ There are further details at the end of this chapter.
 
 ### `object`
 
-The special type `object` refers to any value that isn't a primitive (`string`, `number`, `boolean`, `symbol`, `null`, or `undefined`).
+The special type `object` refers to any value that isn't a primitive (`string`, `number`, `bigint`, `boolean`, `symbol`, `null`, or `undefined`).
 This is different from the _empty object type_ `{ }`, and also different from the global type `Object`.
 It's very likely you will never use `Object`.
 

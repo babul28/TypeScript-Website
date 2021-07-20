@@ -83,13 +83,15 @@ const Play: React.FC<Props> = (props) => {
         tsVersionParam = tsVersionParam.replace("-insiders.", "-dev.")
       }
 
-      const latestRelease = [...playgroundReleases.versions].sort().pop()
+      const latestRelease = [...playgroundReleases.versions].sort().pop()!
       const tsVersion = tsVersionParam || latestRelease
 
       // Because we can reach to localhost ports from the site, it's possible for the locally built compiler to 
       // be hosted and to power the editor with a bit of elbow grease.
       const useLocalCompiler = tsVersion === "dev"
-      const urlForMonaco = useLocalCompiler ? "http://localhost:5615/dev/vs" : `https://typescript.azureedge.net/cdn/${tsVersion}/monaco/min/vs`
+      const devIsh = ["pr", "dev"]
+      const version = devIsh.find(d => tsVersion.includes(d)) ? "dev" : "min"
+      const urlForMonaco = useLocalCompiler ? "http://localhost:5615/dev/vs" : `https://typescript.azureedge.net/cdn/${tsVersion}/monaco/${version}/vs`
 
       // Make a quick HEAD call for the main monaco editor for this version of TS, if it
       // bails then give a useful error message and bail.
@@ -113,7 +115,7 @@ const Play: React.FC<Props> = (props) => {
           "typescript-sandbox": withPrefix('/js/sandbox'),
           "typescript-playground": withPrefix('/js/playground'),
           "unpkg": "https://unpkg.com",
-          "local": "http://localhost:5000"
+          "local": "http://localhost:5000",
         },
         ignoreDuplicateModules: ["vs/editor/editor.main"],
         catchError: true,
@@ -151,7 +153,7 @@ const Play: React.FC<Props> = (props) => {
           text: localStorage.getItem('sandbox-history') || i("play_default_code_sample"),
           compilerOptions: {},
           domID: "monaco-editor-embed",
-          useJavaScript: !!params.get("useJavaScript"),
+          filetype: (!!params.get("useJavaScript") ? "js" : params.get("filetype") || "ts") as any,
           acquireTypes: !localStorage.getItem("disable-ata"),
           supportTwoslashCompilerOptions: true,
           monacoSettings: {
@@ -202,6 +204,7 @@ const Play: React.FC<Props> = (props) => {
                     <span className="select-label">Lang</span>
                     <select id="language-selector">
                       <option>TypeScript</option>
+                      <option>TypeScript Definitions</option>
                       <option>JavaScript</option>
                     </select>
                     <span className="compiler-flag-blurb">{i("play_config_language_blurb")}</span>
@@ -224,7 +227,7 @@ const Play: React.FC<Props> = (props) => {
             <a href="#" id="whatisnew-button" className="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="menu" aria-expanded="false" aria-controls="whatisnew">{i("play_subnav_whatsnew")} <span className="caret"></span></a>
             <ul className="examples-dropdown" id="whatisnew" aria-labelledby="whatisnew-button">
               <button role="button" aria-label="Close dropdown" className="examples-close">{i("play_subnav_examples_close")}</button>
-              <RenderExamples defaultSection="4.2" sections={["4.2", "4.1", "4.0", "3.8", "3.7", "Playground"]} examples={props.pageContext.examplesTOC} locale={props.pageContext.lang} />
+              <RenderExamples defaultSection="4.4" sections={["4.4", "4.3", "4.2", "4.1", "4.0", "3.8", "3.7", "Playground"]} examples={props.pageContext.examplesTOC} locale={props.pageContext.lang} />
             </ul>
           </li>
         </ul>

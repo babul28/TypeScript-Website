@@ -14,15 +14,9 @@ if (process.env.BOOTSTRAPPING) {
 
 require("./scripts/ensureDepsAreBuilt")
 
-const path = require.resolve("./../../watcher")
-require(path)
-
 // https://github.com/gatsbyjs/gatsby/issues/1457
 require("ts-node").register({ files: true })
 const { join } = require("path")
-
-// prettier-ignore
-const shiki = join(require.resolve(`gatsby-remark-shiki-twoslash`), "..", "..", "package.json")
 
 module.exports = {
   siteMetadata: {
@@ -150,7 +144,7 @@ module.exports = {
           },
           "gatsby-remark-autolink-headers",
           {
-            resolve: shiki,
+            resolve: "gatsby-remark-shiki-twoslash",
             options: {
               theme: require("./lib/themes/typescript-beta-light.json"),
             },

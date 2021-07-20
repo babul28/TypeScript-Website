@@ -248,22 +248,43 @@ class C {
 
 TypeScript has some special inference rules for accessors:
 
-- If no `set` exists, the property is automatically `readonly`
-- The type of the setter parameter is inferred from the return type of the getter
-- If the setter parameter has a type annotation, it must match the return type of the getter
+- If `get` exists but no `set`, the property is automatically `readonly`
+- If the type of the setter parameter is not specified, it is inferred from the return type of the getter
 - Getters and setters must have the same [Member Visibility](#member-visibility)
 
-It is not possible to have accessors with different types for getting and setting.
+Since [TypeScript 4.3](https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/), it is possible to have accessors with different types for getting and setting.
 
-If you have a getter without a setter, the field is automatically `readonly`
+```ts twoslash
+class Thing {
+    _size = 0;
+
+    get size(): number {
+        return this._size;
+    }
+
+    set size(value: string | number | boolean) {
+        let num = Number(value);
+
+        // Don't allow NaN, Infinity, etc
+
+        if (!Number.isFinite(num)) {
+            this._size = 0;
+            return;
+        }
+
+        this._size = num;
+    }
+}
+```
 
 ### Index Signatures
 
-Classes can declare index signatures; these work the same as [Index Signatures](#index-signatures) for other object types:
+Classes can declare index signatures; these work the same as [Index Signatures for other object types](/docs/handbook/2/objects.html#index-signatures):
 
 ```ts twoslash
 class MyClass {
   [s: string]: boolean | ((s: string) => boolean);
+
   check(s: string) {
     return this[s] as boolean;
   }
@@ -495,7 +516,7 @@ This means that the base class constructor saw its own value for `name` during i
 
 #### Inheriting Built-in Types
 
-> Note: If you don't plan to inherit from built-in types like `Array`, `Error`, `Map`, etc., you may skip this section
+> Note: If you don't plan to inherit from built-in types like `Array`, `Error`, `Map`, etc. or your compilation target is explicitely set to `ES6`/`ES2015` or above, you may skip this section
 
 In ES2015, constructors which return an object implicitly substitute the value of `this` for any callers of `super(...)`.
 It is necessary for generated constructor code to capture any potential return value of `super(...)` and replace it with `this`.
@@ -553,7 +574,7 @@ You can use TypeScript to control whether certain methods or properties are visi
 ### `public`
 
 The default visibility of class members is `public`.
-A `public` member can be accessed by anywhere:
+A `public` member can be accessed anywhere:
 
 ```ts twoslash
 class Greeter {

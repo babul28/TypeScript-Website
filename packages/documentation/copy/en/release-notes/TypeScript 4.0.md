@@ -455,6 +455,7 @@ Since the beginning days of TypeScript, `catch` clause variables have always bee
 This meant that TypeScript allowed you to do anything you wanted with them.
 
 ```ts twoslash
+// @useUnknownInCatchVariables: false
 try {
   // Do some work
 } catch (x) {
@@ -601,7 +602,7 @@ For more details, [check out the pull request for this feature](https://github.c
 
 ### `/** @deprecated */` Support
 
-TypeScript's editing support now recognizes when a declaration has been marked with a `/** @deprecated *` JSDoc comment.
+TypeScript's editing support now recognizes when a declaration has been marked with a `/** @deprecated */` JSDoc comment.
 That information is surfaced in completion lists and as a suggestion diagnostic that editors can handle specially.
 In an editor like VS Code, deprecated values are typically displayed a strike-though style ~~like this~~.
 

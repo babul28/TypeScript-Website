@@ -110,7 +110,7 @@ This might be a good segue into what we'll call "truthiness" checking.
 
 Truthiness might not be a word you'll find in the dictionary, but it's very much something you'll hear about in JavaScript.
 
-In JavaScript, we can use any expression in conditionals, `&&`s, `||`s, `if` statements, and Boolean negations (`!`), and more.
+In JavaScript, we can use any expression in conditionals, `&&`s, `||`s, `if` statements, Boolean negations (`!`), and more.
 As an example, `if` statements don't expect their condition to always have the type `boolean`.
 
 ```ts twoslash
@@ -133,12 +133,12 @@ Values like
 - `undefined`
 
 all coerce to `false`, and other values get coerced `true`.
-You can always coerce values to `boolean`s by running them through the `Boolean` function, or by using the shorter double-Boolean negation.
+You can always coerce values to `boolean`s by running them through the `Boolean` function, or by using the shorter double-Boolean negation. (The latter has the advantage that TypeScript infers a narrow literal boolean type `true`, while inferring the first as type `boolean`.)
 
 ```ts twoslash
 // both of these result in 'true'
-Boolean("hello");
-!!"world";
+Boolean("hello"); // type: boolean, value: true
+!!"world";        // type: true,    value: true
 ```
 
 It's fairly popular to leverage this behavior, especially for guarding against values like `null` or `undefined`.
@@ -271,6 +271,45 @@ function multiplyValue(container: Container, factor: number) {
 }
 ```
 
+## The `in` operator narrowing
+
+Javascript has an operator for determining if an object has a property with a name: the `in` operator.
+TypeScript takes this into account as a way to narrow down potential types.
+
+For example, with the code: `"value" in x`.  where `"value"` is a string literal and `x` is a union type. 
+The "true" branch narrows `x`'s types which have either an optional or required property `value`, and the "false" branch narrows to types which have an optional or missing property `value`.
+
+```ts twoslash
+type Fish = { swim: () => void };
+type Bird = { fly: () => void };
+
+function move(animal: Fish | Bird) {
+  if ("swim" in animal) {
+    return animal.swim();
+  }
+
+  return animal.fly();
+}
+```
+
+To re-iterate optional properties will exist in both sides for narrowing, for example a human could both swim and fly (with the right equipment) and thus should show up in both sides of the `in` check:
+
+```ts twoslash
+type Fish = { swim: () => void };
+type Bird = { fly: () => void };
+type Human = {  swim?: () => void, fly?: () => void };
+
+function move(animal: Fish | Bird | Human) {
+  if ("swim" in animal) { 
+    animal
+//  ^?
+  } else {
+    animal
+//  ^?
+  }
+}
+```
+
 ## `instanceof` narrowing
 
 JavaScript has an operator for checking whether or not a value is an "instance" of another value.
@@ -289,6 +328,7 @@ function logValue(x: Date | string) {
   }
 }
 ```
+
 
 ## Assignments
 
@@ -445,7 +485,7 @@ Most of the examples we've looked at so far have focused around narrowing single
 While this is common, most of the time in JavaScript we'll be dealing with slightly more complex structures.
 
 For some motivation, let's imagine we're trying to encode shapes like circles and squares.
-Circles keep track of their radii and squares keep track of their side lengths.
+Circles keep track of their radiuses and squares keep track of their side lengths.
 We'll use a field called `kind` to tell which shape we're dealing with.
 Here's a first attempt at defining `Shape`.
 

@@ -156,7 +156,8 @@ names.forEach((s) => {
 
 Even though the parameter `s` didn't have a type annotation, TypeScript used the types of the `forEach` function, along with the inferred type of the array, to determine the type `s` will have.
 
-This process is called _contextual typing_ because the _context_ that the function occurred in informed what type it should have.
+This process is called _contextual typing_ because the _context_ that the function occurred within informs what type it should have.
+
 Similar to the inference rules, you don't need to explicitly learn how this happens, but understanding that it _does_ happen can help you notice when type annotations aren't needed.
 Later, we'll see more examples of how the context that a value occurs in can affect its type.
 
@@ -224,7 +225,7 @@ Now that we know how to write a few types, it's time to start _combining_ them i
 ### Defining a Union Type
 
 The first way to combine types you might see is a _union_ type.
-A union type is type formed from two or more other types, representing values that may be _any one_ of those types.
+A union type is a type formed from two or more other types, representing values that may be _any one_ of those types.
 We refer to each of these types as the union's _members_.
 
 Let's write a function that can operate on strings or numbers:
@@ -305,7 +306,7 @@ function getFirstThree(x: number[] | string) {
 > This is not an accident - the name _union_ comes from type theory.
 > The _union_ `number | string` is composed by taking the union _of the values_ from each type.
 > Notice that given two sets with corresponding facts about each set, only the _intersection_ of those facts applies to the _union_ of the sets themselves.
-> For example, if we had a room of tall people wearing hats, and another room of Spanish speakers wearings hats, after combining those rooms, the only thing we know about _every_ person is that they must be wearing a hat.
+> For example, if we had a room of tall people wearing hats, and another room of Spanish speakers wearing hats, after combining those rooms, the only thing we know about _every_ person is that they must be wearing a hat.
 
 ## Type Aliases
 
@@ -413,7 +414,7 @@ type Animal = {
   name: string
 }<br/>
 type Bear = Animal & { 
-  honey: Boolean 
+  honey: boolean 
 }<br/>
 const bear = getBear();
 bear.name;
@@ -647,8 +648,8 @@ With `strictNullChecks` _on_, when a value is `null` or `undefined`, you will ne
 Just like checking for `undefined` before using an optional property, we can use _narrowing_ to check for values that might be `null`:
 
 ```ts twoslash
-function doSomething(x: string | undefined) {
-  if (x === undefined) {
+function doSomething(x: string | null) {
+  if (x === null) {
     // do nothing
   } else {
     console.log("Hello, " + x.toUpperCase());
@@ -662,7 +663,7 @@ TypeScript also has a special syntax for removing `null` and `undefined` from a 
 Writing `!` after any expression is effectively a type assertion that the value isn't `null` or `undefined`:
 
 ```ts twoslash
-function liveDangerously(x?: number | undefined) {
+function liveDangerously(x?: number | null) {
   // No error
   console.log(x!.toFixed());
 }
@@ -670,11 +671,11 @@ function liveDangerously(x?: number | undefined) {
 
 Just like other type assertions, this doesn't change the runtime behavior of your code, so it's important to only use `!` when you know that the value _can't_ be `null` or `undefined`.
 
-### Enums
+## Enums
 
 Enums are a feature added to JavaScript by TypeScript which allows for describing a value which could be one of a set of possible named constants. Unlike most TypeScript features, this is _not_ a type-level addition to JavaScript but something added to the language and runtime. Because of this, it's a feature which you should know exists, but maybe hold off on using unless you are sure. You can read more about enums in the [Enum reference page](/docs/handbook/enums.html).
 
-### Less Common Primitives
+## Less Common Primitives
 
 It's worth mentioning the rest of the primitives in JavaScript which are represented in the type system.
 Though we will not go into depth here.

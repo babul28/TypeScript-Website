@@ -23,7 +23,7 @@
     "@types/react": "16.9.17",
     "@types/estree": "0.0.46",
     "node-gyp": "5.1.0",
-    "typescript": "4.3.0-beta",
+    "typescript": "4.4.0-dev.20210627",
     "tslib": "2.1.0",
     "prettier": "^2.0.2",
     "shelljs": "0.8.4"
@@ -35,8 +35,8 @@
   },
   "scripts": {
     "bootstrap": "yarn workspaces foreach -v -t --exclude root run bootstrap && BOOTSTRAPPING=true yarn workspaces foreach -v -t --exclude root run build",
-    "start": "concurrently -p \"[{name}]\" -n \"BUILD,SITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"node watcher.js\" \"yarn workspace typescriptlang-org start\" --kill-others",
-    "start-twoslash": "concurrently -p \"[{name}]\" -n \"BUILD,SITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"node watcher.js\" \"yarn workspace typescriptlang-org start-twoslash\" --kill-others",
+    "start": "concurrently -p \"[{name}]\" -n \"BUILD,SITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"node watcher.js\" \"yarn workspace typescriptlang-org start\"",
+    "start-twoslash": "concurrently -p \"[{name}]\" -n \"BUILD,SITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"node watcher.js\" \"yarn workspace typescriptlang-org start-twoslash\"",
     "build": "yarn workspaces foreach -v -t --exclude root --exclude typescriptlang-org run build",
     "build-site": "yarn workspace typescriptlang-org build",
     "compile": "yarn workspace typescriptlang-org tsc",
