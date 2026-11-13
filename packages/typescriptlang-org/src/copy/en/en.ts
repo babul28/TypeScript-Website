@@ -7,7 +7,8 @@ import { indexCopy as index2Copy } from "./index2"
 import { playCopy } from "./playground"
 import { comCopy } from "./community"
 import { handbookCopy } from "./handbook"
-import { dtCopy } from "./dt"
+import { footerCopy } from "./footer"
+import { cheatCopy } from "./cheatsheets"
 
 export const messages = {
   ...navCopy,
@@ -17,8 +18,9 @@ export const messages = {
   ...playCopy,
   ...comCopy,
   ...handbookCopy,
-  ...dtCopy,
   ...index2Copy,
+  ...footerCopy,
+  ...cheatCopy
 }
 
 export const lang = defineMessages(messages)

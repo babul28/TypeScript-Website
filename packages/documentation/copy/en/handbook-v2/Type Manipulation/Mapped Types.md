@@ -37,16 +37,16 @@ type OptionsFlags<Type> = {
   [Property in keyof Type]: boolean;
 };
 // ---cut---
-type FeatureFlags = {
+type Features = {
   darkMode: () => void;
   newUserProfile: () => void;
 };
 
-type FeatureOptions = OptionsFlags<FeatureFlags>;
+type FeatureOptions = OptionsFlags<Features>;
 //   ^?
 ```
 
-### Mapping Modifiers
+## Mapping Modifiers
 
 There are two additional modifiers which can be applied during mapping: `readonly` and `?` which affect mutability and optionality respectively.
 
@@ -124,6 +124,20 @@ interface Circle {
 }
 
 type KindlessCircle = RemoveKindField<Circle>;
+//   ^?
+```
+
+You can map over arbitrary unions, not just unions of `string | number | symbol`, but unions of any type:
+
+```ts twoslash
+type EventConfig<Events extends { kind: string }> = {
+    [E in Events as E["kind"]]: (event: E) => void;
+}
+
+type SquareEvent = { kind: "square", x: number, y: number };
+type CircleEvent = { kind: "circle", radius: number };
+
+type Config = EventConfig<SquareEvent | CircleEvent>
 //   ^?
 ```
 

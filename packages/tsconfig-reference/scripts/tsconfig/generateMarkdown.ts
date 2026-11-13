@@ -3,7 +3,7 @@
 
 /** Run with:
      node --inspect-brk ./node_modules/.bin/ts-node --project packages/tsconfig-reference/tsconfig.json packages/tsconfig-reference/scripts/generateMarkdown.ts
-     yarn ts-node --project packages/tsconfig-reference/tsconfig.json packages/tsconfig-reference/scripts/generateMarkdown.ts 
+     pnpm ts-node --project packages/tsconfig-reference/tsconfig.json packages/tsconfig-reference/scripts/generateMarkdown.ts 
 */
 
 /**
@@ -19,11 +19,13 @@
 
 console.log("TSConfig Ref: MD for TSConfig");
 
-import { writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, readdirSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
+import { fileURLToPath } from "url";
 import * as assert from "assert";
-import { read as readMarkdownFile } from "gray-matter";
-import * as prettier from "prettier";
+import matter from "gray-matter";
+import prettier from "prettier";
+import ts from "typescript-for-docs";
 import { CompilerOptionJSON } from "./generateJSON.js";
 
 import {
@@ -32,10 +34,11 @@ import {
   watchOptionCompilerOptNames,
   rootOptNames,
   parseMarkdown,
-} from "../tsconfigRules";
+  parseMarkdownToPlainText,
+} from "../tsconfigRules.js";
 
-const options = require("../../data/tsconfigOpts.json").options as CompilerOptionJSON[];
-const categories = require("../../data/tsconfigCategories.json") as typeof import("../../data/tsconfigCategories.json");
+const options: CompilerOptionJSON[] = JSON.parse(readFileSync(join("data", "tsconfigOpts.json"), "utf8"));
+const categories: Record<string, ts.DiagnosticMessage> = JSON.parse(readFileSync(join("data", "tsconfigCategories.json"), "utf8"));
 
 const orderedCategories = [
   "Project_Files_0",
@@ -65,12 +68,15 @@ assert.deepEqual(got, expected, `Expected to find everything in ${orderedCategor
 const notCompilerOptions = ["Project_Files_0", "Watch_Options_999"];
 const categoriesForCompilerOpts = orderedCategories.filter((c) => !notCompilerOptions.includes(c));
 
+const hiddenOptions = ["stableTypeOrdering"];
+
 const compilerOptions = options.filter(
   (o) =>
     !typeAcquisitionCompilerOptNames.includes(o.name) &&
     !watchOptionCompilerOptNames.includes(o.name) &&
     !buildOptionCompilerOptNames.includes(o.name) &&
-    !rootOptNames.includes(o.name)
+    !rootOptNames.includes(o.name) &&
+    !hiddenOptions.includes(o.name)
 );
 
 // The TSConfig Reference is a collection of sections which have options or
@@ -85,19 +91,19 @@ const sections = [
   { name: "typeAcquisition", options: typeAcquisitionCompilerOptNames, idPrefix: "type" },
 ];
 
-const languages = readdirSync(join(__dirname, "..", "..", "copy")).filter(
+const languages = readdirSync(new URL("../../copy", import.meta.url)).filter(
   (f) => !f.startsWith(".")
 );
 
 languages.forEach((lang) => {
-  const locale = join(__dirname, "..", "..", "copy", lang);
-  const fallbackLocale = join(__dirname, "..", "..", "copy", "en");
+  const locale = new URL(`../../copy/${lang}/`, import.meta.url);
+  const fallbackLocale = new URL("../../copy/en/", import.meta.url);
 
   const mdChunks: string[] = [];
 
   const getPathInLocale = (path: string, optionalExampleContent?: string, failable = false) => {
-    if (existsSync(join(locale, path))) return join(locale, path);
-    if (existsSync(join(fallbackLocale, path))) return join(fallbackLocale, path);
+    if (existsSync(new URL(path, locale))) return new URL(path, locale);
+    if (existsSync(new URL(path, fallbackLocale))) return new URL(path, fallbackLocale);
 
     const localeDesc = lang === "en" ? lang : `either ${lang} or English`;
     if (!failable)
@@ -128,16 +134,16 @@ languages.forEach((lang) => {
     );
 
     // Intro to the section
-    const sectionsPath = getPathInLocale(join("sections", section.name + ".md"));
-    const sectionsFile = readMarkdownFile(sectionsPath);
+    const sectionsPath = getPathInLocale(join("sections", section.name + ".md"))!;
+    const sectionsFile = matter.read(fileURLToPath(sectionsPath));
     mdChunks.push("\n" + sectionsFile.content + "\n");
 
     // Show a sticky sub-nav for the categories
     if (sectionCategories.length > 1) {
-      mdChunks.push(`<nav id="sticky"><ul>`);
+      mdChunks.push(`<nav id="sticky" aria-label="Compiler options"><ul>`);
       sectionCategories.forEach((categoryID) => {
-        const categoryPath = getPathInLocale(join("categories", categoryID + ".md"));
-        const categoryFile = readMarkdownFile(categoryPath);
+        const categoryPath = getPathInLocale(join("categories", categoryID + ".md"))!;
+        const categoryFile = matter.read(fileURLToPath(categoryPath));
 
         mdChunks.push(`<li><a href="#${categoryID}">${categoryFile.data.display}</a></li>`);
       });
@@ -148,12 +154,14 @@ languages.forEach((lang) => {
 
     sectionCategories.forEach((categoryID) => {
       // We need this to look up the category ID
-      const category = Object.values(categories).find((c: any) => c.key === categoryID);
+      const category = Object.values(categories as { [code: string]: ts.DiagnosticMessage }).find(
+        (c: any) => c.key === categoryID
+      );
       let categoryName = categoryID;
 
       if (category) {
-        const categoryPath = getPathInLocale(join("categories", categoryID + ".md"));
-        const categoryFile = readMarkdownFile(categoryPath);
+        const categoryPath = getPathInLocale(join("categories", categoryID + ".md"))!;
+        const categoryFile = matter.read(fileURLToPath(categoryPath));
 
         assert.ok(categoryFile.data.display, "No display data for category: " + categoryID); // Must have a display title in the front-matter
         categoryName = categoryFile.data.display;
@@ -177,8 +185,8 @@ languages.forEach((lang) => {
               // if (!richOpt) throw new Error(`Could not find an option for ${opt} in ${section.name}`);
               return richOpt;
             })
-            .filter(Boolean)
-        : compilerOptions.filter((o) => o.categoryCode === category.code);
+            .filter((opt): opt is CompilerOptionJSON => Boolean(opt))
+        : compilerOptions.filter((o) => o.categoryCode === category!.code);
 
       // prettier-ignore
       assert.ok(optionsForCategory, "Could not find options for " + categoryID + " in " + JSON.stringify(categories));
@@ -192,13 +200,13 @@ languages.forEach((lang) => {
         const mdPath = join("options", optionName + ".md");
         const scopedMDPath = join("options", section.name, optionName + ".md");
 
-        const fullPath = join(__dirname, "..", "..", "copy", lang, mdPath);
-        const exampleOptionContent = `\n\n\n Run:\n    echo '---\\ndisplay: "${optionName}"\\noneline: "Does something"\\n---\\n${option.description?.message}\\n' > ${fullPath}\n\nThen add some docs and run: \n>  yarn workspace tsconfig-reference build\n\n`;
+        const fullPath = new URL(`../../copy/${lang}/${mdPath}`, import.meta.url);
+        const exampleOptionContent = `\n\n\n Run:\n    echo '---\\ndisplay: "${optionName}"\\noneline: "Does something"\\n---\\n${option.description?.message}\\n' > ${fullPath}\n\nThen add some docs and run: \n>  pnpm run --filter=tsconfig-reference build\n\n`;
 
         const optionPath = getPathInLocale(mdPath, exampleOptionContent, true);
         const scopedOptionPath = getPathInLocale(scopedMDPath, exampleOptionContent, true);
 
-        const optionFile = readMarkdownFile(scopedOptionPath || optionPath);
+        const optionFile = matter.read(fileURLToPath(scopedOptionPath || optionPath!));
 
         // prettier-ignore
         assert.ok(optionFile, "Could not find an optionFile: " + optionName);
@@ -212,7 +220,7 @@ languages.forEach((lang) => {
         optionsSummary.push({
           id: optionName,
           display: optionFile.data.display,
-          oneliner: String(parseMarkdown(optionFile.data.oneline)),
+          oneliner: parseMarkdownToPlainText(String(optionFile.data.oneline)),
           categoryID: categoryID,
           categoryDisplay: categoryName,
         });
@@ -245,7 +253,7 @@ languages.forEach((lang) => {
         }
 
         if (option.defaultValue) {
-          mdTableRows.push(["Default", option.defaultValue]);
+          mdTableRows.push(["Default", String(option.defaultValue)]);
         }
 
         if (option.allowedValues) {
@@ -273,10 +281,7 @@ languages.forEach((lang) => {
           "<ul class='compiler-option-md'>" +
           mdTableRows
             .map(
-              (r) =>
-                `<li><span>${r[0]}${
-                  r.length > 1 ? ":" : ""
-                }</span>${parseMarkdown(r[1])}</li>`
+              (r) => `<li><span>${r[0]}${r.length > 1 ? ":" : ""}</span>${parseMarkdown(r[1] ?? "")}</li>`
             )
             .join("\n") +
           "</ul>";
@@ -300,35 +305,35 @@ languages.forEach((lang) => {
   });
 
   // Write the Markdown and JSON
-  const markdown = prettier.format(mdChunks.join("\n"), { filepath: "index.md" });
-  const mdPath = join(__dirname, "..", "..", "output", lang + ".md");
+  const markdown = prettier.format(mdChunks.join("\n"), {
+    filepath: "index.md",
+  });
+  const mdPath = new URL(`../../output/${lang}.md`, import.meta.url);
   writeFileSync(mdPath, markdown);
 
   writeFileSync(
-    join(__dirname, "..", "..", "output", lang + ".json"),
+    new URL(`../../output/${lang}.json`, import.meta.url),
     JSON.stringify({ categories: allCategories })
   );
 
   // This is used by the playground
   writeFileSync(
-    join(__dirname, "..", "..", "output", lang + "-summary.json"),
+    new URL(`../../output/${lang}-summary.json`, import.meta.url),
     JSON.stringify({ options: optionsSummary })
   );
 
-  const jsonDir = join(__dirname, "..", "..", "..", "typescriptlang-org", "static", "js", "json");
+  const jsonDir = new URL("../../../typescriptlang-org/static/js/json/", import.meta.url);
   if (!existsSync(jsonDir)) mkdirSync(jsonDir);
 
   // This is used by the tsconfig popups
   writeFileSync(
-    join(jsonDir, lang + "-tsconfig-popup.json"),
-    JSON.stringify(
-      Object.fromEntries(optionsSummary.map((data) => [data.id, data.oneliner]))
-    )
+    new URL(`${lang}-tsconfig-popup.json`, jsonDir),
+    JSON.stringify(Object.fromEntries(optionsSummary.map((data) => [data.id, data.oneliner])))
   );
 });
 
 writeFileSync(
-  join(__dirname, "..", "..", "output", "languages.json"),
+  new URL("../../output/languages.json", import.meta.url),
   JSON.stringify({ languages })
 );
 

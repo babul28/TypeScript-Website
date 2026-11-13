@@ -8,11 +8,13 @@ if (process.env.BOOTSTRAPPING) {
 
   // prettier-ignore
   console.log(`
-  Bootstrapped. You can now run the site with ${chalk.greenBright.bold("yarn start")}.`)
+  Bootstrapped. You can now run the site with ${chalk.greenBright.bold("pnpm start")}.`)
   process.exit(0)
 }
 
 require("./scripts/ensureDepsAreBuilt")
+
+const ts = require("typescript");
 
 // https://github.com/gatsbyjs/gatsby/issues/1457
 require("ts-node").register({ files: true })
@@ -47,9 +49,6 @@ module.exports = {
       },
     },
 
-    // Support for downloading or pre-caching pages, needed for PWAs
-    // "gatsby-plugin-offline",
-
     // Creates TS types for queries during `gatsby dev`
     {
       resolve: "gatsby-plugin-typegen",
@@ -66,7 +65,9 @@ module.exports = {
       resolve: `gatsby-plugin-sitemap`,
       options: {
         // Skip handbook v2 from appearing in search
-        excludes: [`*/2/*`, `*/glossary`, `*/vo/*`],
+        excludes: [`*/glossary`, `*/vo/*`],
+        // The new playground is static HTML rather than a Gatsby page.
+        resolvePages: ({ allSitePage }) => [...allSitePage.nodes, { path: "/play/v2/" }],
       },
     },
     // Lets you edit the head from inside a react tree
@@ -117,6 +118,13 @@ module.exports = {
       },
     },
     {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `${__dirname}/../playground-handbook/copy`,
+        name: `playground-handbook`,
+      },
+    },
+    {
       resolve: "gatsby-plugin-i18n",
       options: {
         langKeyDefault: "en",
@@ -148,6 +156,13 @@ module.exports = {
             options: {
               theme: require("./lib/themes/typescript-beta-light.json"),
               addTryButton: true,
+              defaultOptions: {
+                noErrorValidation: true,
+              },
+              defaultCompilerOptions: {
+                types: [],
+                target: ts.ScriptTarget.ES2020,
+              },
             },
           },
           "gatsby-remark-copy-linked-files",

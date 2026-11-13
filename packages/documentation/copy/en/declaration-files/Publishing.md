@@ -33,7 +33,6 @@ For example:
 
 Note that the `"typings"` field is synonymous with `types`, and could be used as well.
 
-Also note that if your main declaration file is named `index.d.ts` and lives at the root of the package (next to `index.js`) you do not need to mark the `types` property, though it is advisable to do so.
 
 ## Dependencies
 
@@ -96,7 +95,7 @@ If your type definitions depend on another package:
 
 When TypeScript opens a `package.json` file to figure out which files it needs to read, it first looks at a field called `typesVersions`.
 
-#### Folder redirects (using `*`)
+### Folder redirects (using `*`)
 
 A `package.json` with a `typesVersions` field might look like this:
 
@@ -122,7 +121,7 @@ If we import from `package-name/foo`, we'll try to look for `[...]/node_modules/
 What if we're not running in TypeScript 3.1 in this example?
 Well, if none of the fields in `typesVersions` get matched, TypeScript falls back to the `types` field, so here TypeScript 3.0 and earlier will be redirected to `[...]/node_modules/package-name/index.d.ts`.
 
-#### File redirects
+### File redirects
 
 When you want to only change the resolution for a single file at a time, you can tell TypeScript the file to resolve differently by passing in the exact filenames:
 
@@ -138,6 +137,8 @@ When you want to only change the resolution for a single file at a time, you can
 ```
 
 On TypeScript 4.0 and above, an import for `"package-name"` would resolve to `./index.d.ts` and for 3.9 and below `"./index.v3.d.ts`.
+
+Note that redirections only affect the _external_ API of a package; import resolution within a project is not affected by `typesVersions`. For example, a `d.ts` file in the previous example containing `import * as foo from "./index"` will still map to `index.d.ts`, not `index.v3.d.ts`, whereas another package importing `import * as foo from "package-name"` _will_ get `index.v3.d.ts`.
 
 ## Matching behavior
 
@@ -179,4 +180,4 @@ That means in the above example, even though both the `>=3.2` and the `>=3.1` ma
 
 Packages under the [@types](https://www.npmjs.com/~types) organization are published automatically from [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped) using the [types-publisher tool](https://github.com/microsoft/DefinitelyTyped-tools/tree/master/packages/publisher).
 To get your declarations published as an @types package, please submit a pull request to [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped).
-You can find more details in the [contribution guidelines page](https://definitelytyped.org/guides/contributing.html).
+You can find more details in the [contribution guidelines page](https://definitelytyped.github.io/guides/contributing.html).

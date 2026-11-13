@@ -47,7 +47,10 @@ In this case, you will want a file like the following:
     // Types should go into this directory.
     // Removing this would place the .d.ts files
     // next to the .js files
-    "outDir": "dist"
+    "outDir": "dist",
+    // go to js file when using IDE functions like
+    // "Go to Definition" in VSCode
+    "declarationMap": true
   }
 }
 ```
@@ -85,4 +88,4 @@ If absent, then "main" is used
 
 ## Tips
 
-If you'd like to write tests for your .d.ts files, try [tsd](https://github.com/SamVerschueren/tsd).
+If you'd like to write tests for your .d.ts files, try [tsd](https://github.com/SamVerschueren/tsd) or [TSTyche](https://github.com/tstyche/tstyche).

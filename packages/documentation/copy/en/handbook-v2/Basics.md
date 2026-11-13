@@ -64,12 +64,12 @@ function fn(x) {
 
 We can _observe_ by reading the code that this function will only work if given an object with a callable `flip` property, but JavaScript doesn't surface this information in a way that we can check while the code is running.
 The only way in pure JavaScript to tell what `fn` does with a particular value is to call it and see what happens.
-This kind of behavior makes it hard to predict what code will do before it runs, which means it's harder to know what your code is going to do while you're writing it.
+This kind of behavior makes it hard to predict what the code will do before it runs, which means it's harder to know what your code is going to do while you're writing it.
 
 Seen in this way, a _type_ is the concept of describing which values can be passed to `fn` and which will crash.
 JavaScript only truly provides _dynamic_ typing - running the code to see what happens.
 
-The alternative is to use a _static_ type system to make predictions about what code is expected _before_ it runs.
+The alternative is to use a _static_ type system to make predictions about what the code is expected to do _before_ it runs.
 
 ## Static type-checking
 
@@ -83,7 +83,7 @@ Or if we were lucky enough to witness the error, we might have ended up doing la
 
 Ideally, we could have a tool that helps us find these bugs _before_ our code runs.
 That's what a static type-checker like TypeScript does.
-_Static types systems_ describe the shapes and behaviors of what our values will be when we run our programs.
+_Static type systems_ describe the shapes and behaviors of what our values will be when we run our programs.
 A type-checker like TypeScript uses that information and tells us when things might be going off the rails.
 
 ```ts twoslash
@@ -343,7 +343,7 @@ let msg = "hello there!";
 Even though we didn't tell TypeScript that `msg` had the type `string` it was able to figure that out.
 That's a feature, and it's best not to add annotations when the type system would end up inferring the same type anyway.
 
-> Note: the message bubble inside the code sample above. That is what your editor would show if you had hovered over the word.
+> Note: The message bubble inside the previous code sample is what your editor would show if you had hovered over the word.
 
 ## Erased Types
 
@@ -362,7 +362,7 @@ greet("Maddison", new Date());
 Notice two things here:
 
 1. Our `person` and `date` parameters no longer have type annotations.
-2. Our "template string" - that string that used backticks (the `` ` `` character) - was converted to plain strings with concatenations (`+`).
+2. Our "template string" - that string that used backticks (the `` ` `` character) - was converted to plain strings with concatenations.
 
 More on that second point later, but let's now focus on that first point.
 Type annotations aren't part of JavaScript (or ECMAScript to be pedantic), so there really aren't any browsers or other runtimes that can just run TypeScript unmodified.
@@ -382,16 +382,16 @@ One other difference from the above was that our template string was rewritten f
 to
 
 ```js
-"Hello " + person + ", today is " + date.toDateString() + "!";
+"Hello ".concat(person, ", today is ").concat(date.toDateString(), "!");
 ```
 
 Why did this happen?
 
 Template strings are a feature from a version of ECMAScript called ECMAScript 2015 (a.k.a. ECMAScript 6, ES2015, ES6, etc. - _don't ask_).
-TypeScript has the ability to rewrite code from newer versions of ECMAScript to older ones such as ECMAScript 3 or ECMAScript 5 (a.k.a. ES3 and ES5).
+TypeScript has the ability to rewrite code from newer versions of ECMAScript to older ones such as ECMAScript 3 or ECMAScript 5 (a.k.a. ES5).
 This process of moving from a newer or "higher" version of ECMAScript down to an older or "lower" one is sometimes called _downleveling_.
 
-By default TypeScript targets ES3, an extremely old version of ECMAScript.
+By default TypeScript targets ES5, an extremely old version of ECMAScript.
 We could have chosen something a little bit more recent by using the [`target`](/tsconfig#target) option.
 Running with `--target es2015` changes TypeScript to target ECMAScript 2015, meaning code should be able to run wherever ECMAScript 2015 is supported.
 So running `tsc --target es2015 hello.ts` gives us the following output:
@@ -403,7 +403,7 @@ function greet(person, date) {
 greet("Maddison", new Date());
 ```
 
-> While the default target is ES3, the great majority of current browsers support ES2015.
+> While the default target is ES5, the great majority of current browsers support ES2015.
 > Most developers can therefore safely specify ES2015 or above as a target, unless compatibility with certain ancient browsers is important.
 
 ## Strictness
@@ -426,7 +426,7 @@ The two biggest ones you should know about are [`noImplicitAny`](/tsconfig#noImp
 
 ## `noImplicitAny`
 
-Recall that in some places, TypeScript doesn't try to infer any types for us and instead falls back to the most lenient type: `any`.
+Recall that in some places, TypeScript doesn't try to infer types for us and instead falls back to the most lenient type: `any`.
 This isn't the worst thing that can happen - after all, falling back to `any` is just the plain JavaScript experience anyway.
 
 However, using `any` often defeats the purpose of using TypeScript in the first place.

@@ -32,7 +32,7 @@ const Index: React.FC<Props> = props => {
     getLoaderScript.src = withPrefix("/js/vs.loader.js")
     getLoaderScript.async = true
     getLoaderScript.onload = () => {
-      // Allow prod/staging builds to set a custom commit prefix to bust caches
+      // Allow prod builds to set a custom commit prefix to bust caches
       const {sandboxRoot} = getPlaygroundUrls()
       
       // @ts-ignore
@@ -40,7 +40,7 @@ const Index: React.FC<Props> = props => {
 
       re.config({
         paths: {
-          vs: "https://typescript.azureedge.net/cdn/4.0.5/monaco/min/vs",
+          vs: "https://playgroundcdn.typescriptlang.org/cdn/4.0.5/monaco/min/vs",
           sandbox: sandboxRoot,
         },
         ignoreDuplicateModules: ["vs/editor/editor.main"],
@@ -127,8 +127,6 @@ const Index: React.FC<Props> = props => {
 
                 document.getElementById("twoslash-failure")!.style.display =
                   "none"
-                document.getElementById("twoslash-results")!.innerHTML = html
-
                 // Remove all the kids
                 while (results.firstChild) {
                   results.removeChild(results.firstChild)
@@ -180,7 +178,7 @@ const Index: React.FC<Props> = props => {
             }
 
             const debouncedTwoslash = debounce(runTwoslash, 500)
-            sandbox.editor.onDidChangeModelContent(debouncedTwoslash)
+            sandbox.editor.onDidChangeModelContent(() => debouncedTwoslash())
             runTwoslash()
 
             setTimeout(() => {
@@ -298,6 +296,7 @@ const Index: React.FC<Props> = props => {
                 />
                 <div id="example-buttons">
                   {codeSamples.map(code => {
+                    
                     const setExample = e => {
                       if (e.target.classList.contains("disabled")) return
 
@@ -307,7 +306,7 @@ const Index: React.FC<Props> = props => {
                       window.sandbox.setText(code.code)
                     }
                     return (
-                      <div className="button disabled" onClick={setExample}>
+                      <div className="button disabled" key={code.name} onClick={setExample}>
                         {code.name}
                       </div>
                     )

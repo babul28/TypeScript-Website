@@ -23,7 +23,8 @@ import { allowConnectingToLocalhost, activePlugins, addCustomPlugin } from "./si
 import { createUtils, PluginUtils } from "./pluginUtils"
 import type React from "react"
 import { settingsPlugin, getPlaygroundPlugins } from "./sidebar/settings"
-import { gistPoweredNavBar } from "./navigation"
+import { hideNavForHandbook, showNavForHandbook } from "./navigation"
+import { createTwoslashInlayProvider } from "./twoslashInlays"
 
 export { PluginUtils } from "./pluginUtils"
 
@@ -78,28 +79,31 @@ export const setupPlayground = (
   react: typeof React
 ) => {
   const playgroundParent = sandbox.getDomNode().parentElement!.parentElement!.parentElement!
-  // UI to the left
 
+  // UI to the left
   const leftNav = createNavigationSection()
   playgroundParent.insertBefore(leftNav, sandbox.getDomNode().parentElement!.parentElement!)
 
   const dragBarLeft = createDragBar("left")
   playgroundParent.insertBefore(dragBarLeft, sandbox.getDomNode().parentElement!.parentElement!)
 
-  leftNav.style.display = "none"
-  dragBarLeft.style.display = "none"
-
   const showNav = () => {
     const right = document.getElementsByClassName("playground-sidebar").item(0)!
     const middle = document.getElementById("editor-container")!
-    middle.style.width = `calc(100% - ${right.clientWidth + 180}px)`
+    middle.style.width = `calc(100% - ${right.clientWidth + 210}px)`
 
     leftNav.style.display = "block"
-    leftNav.style.width = "180px"
-    leftNav.style.minWidth = "180px"
-    leftNav.style.maxWidth = "180px"
+    leftNav.style.width = "210px"
+    leftNav.style.minWidth = "210px"
+    leftNav.style.maxWidth = "210px"
     dragBarLeft.style.display = "block"
   }
+  const hideNav = () => {
+    leftNav.style.display = "none"
+    dragBarLeft.style.display = "none"
+  }
+
+  hideNav()
 
   // UI to the right
   const dragBar = createDragBar("right")
@@ -180,6 +184,34 @@ export const setupPlayground = (
     }, 300)
   })
 
+  // When there are multi-file playgrounds, we should show the implicit filename, ideally this would be
+  // something more inline, but we can abuse the code lenses for now because they get their own line!
+  sandbox.monaco.languages.registerCodeLensProvider(sandbox.language, {
+    provideCodeLenses: function (model, token) {
+      // If you have @filename on the first line, don't show the implicit filename
+      const lenses = !showFileCodeLens && !model.getLineContent(1).startsWith("// @filename")
+        ? []
+        : [
+            {
+              range: {
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 2,
+                endColumn: 1,
+              },
+              id: "implicit-filename-first",
+              command: {
+                id: "noop",
+                title: `// @filename: ${sandbox.filepath}`,
+              },
+            },
+          ]
+      return { lenses, dispose: () => {} }
+    },
+  })
+
+  let showFileCodeLens = false
+
   // If you set this to true, then the next time the playground would
   // have set the user's hash it would be skipped - used for setting
   // the text in examples
@@ -187,6 +219,7 @@ export const setupPlayground = (
 
   // Sets the URL and storage of the sandbox string
   const playgroundDebouncedMainFunction = () => {
+    showFileCodeLens = sandbox.getText().includes("// @filename")
     localStorage.setItem("sandbox-history", sandbox.getText())
   }
 
@@ -202,11 +235,12 @@ export const setupPlayground = (
     }
   })
 
+  // Keeps track of whether the project has been set up as an ESM module via a package.json
+  let isESMMode = false
+
   // When any compiler flags are changed, trigger a potential change to the URL
-  sandbox.setDidUpdateCompilerSettings(() => {
+  sandbox.setDidUpdateCompilerSettings(async () => {
     playgroundDebouncedMainFunction()
-    // @ts-ignore
-    window.appInsights && window.appInsights.trackEvent({ name: "Compiler Settings changed" })
 
     const model = sandbox.editor.getModel()
     const plugin = getCurrentPlugin()
@@ -217,6 +251,25 @@ export const setupPlayground = (
     if (alwaysUpdateURL) {
       const newURL = sandbox.createURLQueryWithCompilerOptions(sandbox)
       window.history.replaceState({}, "", newURL)
+    }
+
+    // Add an outer package.json with 'module: type' and ensures all the
+    // other settings are inline for ESM mode
+    const moduleNumber = (sandbox.getCompilerOptions().module as number) || 0
+    const isESMviaModule = moduleNumber > 99 && moduleNumber < 200
+    const moduleResNumber = sandbox.getCompilerOptions().moduleResolution || 0
+    const isESMviaModuleRes = moduleResNumber > 2 && moduleResNumber < 100
+
+    if (isESMviaModule || isESMviaModuleRes) {
+      if (isESMMode) return
+      isESMMode = true
+      setTimeout(() => {
+        ui.flashInfo(i("play_esm_mode"))
+      }, 300)
+
+      const nextRes = (moduleNumber === 199 || moduleNumber === 100 ? 99 : 2) as import("monaco-editor").languages.typescript.ModuleResolutionKind
+      sandbox.setCompilerSettings({ target: 99, moduleResolution: nextRes, module: moduleNumber })
+      sandbox.addLibraryToRuntime(JSON.stringify({ name: "playground", type: "module" }), "/package.json")
     }
   })
 
@@ -229,7 +282,10 @@ export const setupPlayground = (
 
   // Set up the label for the dropdown
   const versionButton = document.querySelectorAll("#versions > a").item(0)
-  versionButton.innerHTML = "v" + sandbox.ts.version + " <span class='caret'/>"
+  versionButton.textContent = "v" + sandbox.ts.version + " "
+  const caret = document.createElement("spam")
+  caret.classList.add("caret")
+  versionButton.appendChild(caret)
   versionButton.setAttribute("aria-label", `Select version of TypeScript, currently ${sandbox.ts.version}`)
 
   // Add the versions to the dropdown
@@ -240,7 +296,7 @@ export const setupPlayground = (
 
   const notWorkingInPlayground = ["3.1.6", "3.0.1", "2.8.1", "2.7.2", "2.4.1"]
 
-  const allVersions = [...sandbox.supportedVersions.filter(f => !notWorkingInPlayground.includes(f)), "Nightly"]
+  const allVersions = ["Nightly", ...sandbox.supportedVersions.filter(f => !notWorkingInPlayground.includes(f))]
 
   allVersions.forEach((v: string) => {
     const li = document.createElement("li")
@@ -278,14 +334,14 @@ export const setupPlayground = (
     const a = link as HTMLAnchorElement
     a.onclick = _e => {
       if (a.parentElement!.classList.contains("open")) {
-        document.querySelectorAll(".navbar-sub li.open").forEach(i => i.classList.remove("open"))
-        a.setAttribute("aria-expanded", "false")
+        escapePressed()
       } else {
-        document.querySelectorAll(".navbar-sub li.open").forEach(i => i.classList.remove("open"))
+        escapePressed()
         a.parentElement!.classList.toggle("open")
         a.setAttribute("aria-expanded", "true")
 
-        const exampleContainer = a.closest("li")!.getElementsByTagName("ul").item(0)!
+        const exampleContainer = a.closest("li")!.getElementsByClassName("dropdown-dialog").item(0) as HTMLElement
+        if (!exampleContainer) return
 
         const firstLabel = exampleContainer.querySelector("label") as HTMLElement
         if (firstLabel) firstLabel.focus()
@@ -305,7 +361,7 @@ export const setupPlayground = (
           if (lastButton) {
             redirectTabPressTo(lastButton, exampleContainer, ".examples-close")
           } else {
-            const sections = document.querySelectorAll("ul.examples-dropdown .section-content")
+            const sections = document.querySelectorAll(".dropdown-dialog .section-content")
             sections.forEach(s => {
               const buttons = s.querySelectorAll("a.example-link")
               const lastButton = buttons.item(buttons.length - 1) as HTMLElement
@@ -320,6 +376,14 @@ export const setupPlayground = (
     }
   })
 
+  /** Handles removing the dropdowns like tsconfig/examples/handbook */
+  const escapePressed = () => {
+    document.querySelectorAll(".navbar-sub li.open").forEach(i => i.classList.remove("open"))
+    document.querySelectorAll(".navbar-sub li").forEach(i => i.setAttribute("aria-expanded", "false"))
+
+    hideNavForHandbook(sandbox)
+  }
+
   // Handle escape closing dropdowns etc
   document.onkeydown = function (evt) {
     evt = evt || window.event
@@ -330,16 +394,13 @@ export const setupPlayground = (
       // @ts-ignore - this used to be the case
       isEscape = evt.keyCode === 27
     }
-    if (isEscape) {
-      document.querySelectorAll(".navbar-sub li.open").forEach(i => i.classList.remove("open"))
-      document.querySelectorAll(".navbar-sub li").forEach(i => i.setAttribute("aria-expanded", "false"))
-    }
+    if (isEscape) escapePressed()
   }
 
   const shareAction = {
     id: "copy-clipboard",
     label: "Save to clipboard",
-    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
 
     contextMenuGroupId: "run",
     contextMenuOrder: 1.5,
@@ -399,12 +460,35 @@ export const setupPlayground = (
   // Handle the close buttons on the examples
   document.querySelectorAll("button.examples-close").forEach(b => {
     const button = b as HTMLButtonElement
-    button.onclick = (e: any) => {
-      const button = e.target as HTMLButtonElement
-      const navLI = button.closest("li")
-      navLI?.classList.remove("open")
-    }
+    button.onclick = escapePressed
   })
+
+  // Support clicking the handbook button on the top nav
+  const handbookButton = document.getElementById("handbook-button")
+
+  if (handbookButton) {
+    handbookButton.onclick = () => {
+      // Two potentially concurrent sidebar navs is just a bit too much
+      // state to keep track of ATM
+      if (!handbookButton.parentElement!.classList.contains("active")) {
+        ui.flashInfo("Cannot open the Playground handbook when in a Gist")
+        return
+      }
+
+      const showingHandbook = handbookButton.parentElement!.classList.contains("open")
+      if (!showingHandbook) {
+        escapePressed()
+
+        showNav()
+        handbookButton.parentElement!.classList.add("open")
+        showNavForHandbook(sandbox, escapePressed)
+      } else {
+        escapePressed()
+      }
+
+      return false
+    }
+  }
 
   setupSidebarToggle()
 
@@ -494,6 +578,7 @@ export const setupPlayground = (
     })
   }
 
+  // Set the errors number in the sidebar tabs
   const model = sandbox.getModel()
   model.onDidChangeDecorations(() => {
     const markers = sandbox.monaco.editor.getModelMarkers({ resource: model.uri }).filter(m => m.severity !== 1)
@@ -523,6 +608,14 @@ export const setupPlayground = (
     sandbox.editor.layout()
   })
 
+  // Tells monaco to check out the font sizes in order to make
+  // sure that selecting text in the editor provides the same
+  // length as unselected text - otherwise space for a selection
+  // will be a little bit wider than it should be. s
+  setTimeout(() => {
+    monaco.editor.remeasureFonts()
+  }, 5000)
+
   const ui = createUI()
   const exporter = createExporter(sandbox, monaco, ui)
 
@@ -550,7 +643,7 @@ export const setupPlayground = (
   console.log("\twindow.react", window.react)
   console.log("\twindow.reactDOM", window.reactDOM)
 
-  /** A plugin */
+  /** The plugin system */
   const activateExternalPlugin = (
     plugin: PlaygroundPlugin | ((utils: PluginUtils) => PlaygroundPlugin),
     autoActivate: boolean
@@ -635,6 +728,14 @@ export const setupPlayground = (
     }
   }
 
+  const [tsMajor, tsMinor] = sandbox.ts.version.split(".")
+  if (
+    (parseInt(tsMajor) > 4 || (parseInt(tsMajor) == 4 && parseInt(tsMinor) >= 6)) &&
+    monaco.languages.registerInlayHintsProvider
+  ) {
+    monaco.languages.registerInlayHintsProvider(sandbox.language, createTwoslashInlayProvider(sandbox))
+  }
+
   if (location.hash.startsWith("#show-examples")) {
     setTimeout(() => {
       document.getElementById("examples-button")?.click()
@@ -647,9 +748,11 @@ export const setupPlayground = (
     }, 100)
   }
 
-  // Grab the contents of a Gist
-  if (location.hash.startsWith("#gist/")) {
-    gistPoweredNavBar(sandbox, ui, showNav)
+  // Auto-load into the playground
+  if (location.hash.startsWith("#handbook")) {
+    setTimeout(() => {
+      document.getElementById("handbook-button")?.click()
+    }, 100)
   }
 
   return playground

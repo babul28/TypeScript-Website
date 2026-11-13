@@ -3,40 +3,36 @@
 
 /** Run with:
      node --inspect-brk ./node_modules/.bin/ts-node --project packages/tsconfig-reference/tsconfig.json packages/tsconfig-reference/scripts/generateMarkdown.ts
-     yarn ts-node --project packages/tsconfig-reference/tsconfig.json packages/tsconfig-reference/scripts/generateMarkdown.ts 
+     pnpm ts-node --project packages/tsconfig-reference/tsconfig.json packages/tsconfig-reference/scripts/generateMarkdown.ts 
 */
 console.log("TSConfig Ref: MD for CLI Opts");
 
 import { writeFileSync, readdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { read as readMarkdownFile } from "gray-matter";
-import * as prettier from "prettier";
+import { fileURLToPath } from "url";
+import matter from "gray-matter";
+import prettier from "prettier";
 import { CompilerOptionJSON } from "./generateJSON.js";
-import { parseMarkdown } from "../tsconfigRules";
+import { parseMarkdown } from "../tsconfigRules.js";
 
-const options = require(join(__dirname, "../../data/cliOpts.json")) as {
-  options: CompilerOptionJSON[];
-  build: CompilerOptionJSON[];
-  watch: CompilerOptionJSON[];
-  cli: CompilerOptionJSON[];
-};
+const cliOpts: Record<string, CompilerOptionJSON[]> = JSON.parse(readFileSync(join("data", "cliOpts.json"), "utf8"));
 
 const knownTypes: Record<string, string> = {};
 
-const languages = readdirSync(join(__dirname, "..", "..", "copy")).filter(
+const languages = readdirSync(new URL("../../copy", import.meta.url)).filter(
   (f) => !f.startsWith(".")
 );
 
 languages.forEach((lang) => {
-  const locale = join(__dirname, "..", "..", "copy", lang);
-  const fallbackLocale = join(__dirname, "..", "..", "copy", "en");
+  const locale = new URL(`../../copy/${lang}/`, import.meta.url);
+  const fallbackLocale = new URL("../../copy/en/", import.meta.url);
 
   const markdownChunks: string[] = [];
 
   const getPathInLocale = (path: string, optionalExampleContent?: string) => {
-    if (existsSync(join(locale, path))) return join(locale, path);
-    if (existsSync(join(fallbackLocale, path))) return join(fallbackLocale, path);
-    const en = join(fallbackLocale, path);
+    if (existsSync(new URL(path, locale))) return new URL(path, locale);
+    if (existsSync(new URL(path, fallbackLocale))) return new URL(path, fallbackLocale);
+    const en = new URL(path, fallbackLocale);
 
     const localeDesc = lang === "en" ? lang : `either ${lang} or English`;
     // prettier-ignore
@@ -45,7 +41,11 @@ languages.forEach((lang) => {
     );
   };
 
-  function renderTable(title: string, options: CompilerOptionJSON[], opts?: { noDefaults: true }) {
+  function renderTable(
+    title: string,
+    options: typeof cliOpts[keyof typeof cliOpts],
+    opts?: { noDefaults: true }
+  ) {
     markdownChunks.push(`<h3>${title}</h3>`);
 
     // Trim leading whitespaces so that it is not rendered as a markdown code block
@@ -58,7 +58,7 @@ languages.forEach((lang) => {
     </tr>
   </thead>
   <tbody>
-`.trim()
+`.trim();
 
     markdownChunks.push(tableHeader);
 
@@ -69,14 +69,14 @@ languages.forEach((lang) => {
       let description = option.description?.message;
       try {
         const sectionsPath = getPathInLocale(join("options", option.name + ".md"));
-        const optionFile = readMarkdownFile(sectionsPath);
+        const optionFile = matter.read(fileURLToPath(sectionsPath));
         description = optionFile.data.oneline;
       } catch (error) {
         try {
           const sectionsPath = getPathInLocale(join("cli", option.name + ".md"));
-          const optionFile = readMarkdownFile(sectionsPath);
+          const optionFile = matter.read(fileURLToPath(sectionsPath));
           description = optionFile.data.oneline;
-        } catch (error) { }
+        } catch (error) {}
       }
 
       const oddEvenClass = index % 2 === 0 ? "odd" : "even";
@@ -94,9 +94,7 @@ languages.forEach((lang) => {
           // @ts-ignore
           const or = new Intl.ListFormat(lang, { type: "disjunction" });
           optType = or.format(
-            option.allowedValues.map((v) =>
-              v.replace(/^[-.0-9_a-z]+$/i, "`$&`")
-            )
+            option.allowedValues.map((v) => v.replace(/^[-.0-9_a-z]+$/i, "`$&`"))
           );
         } else {
           optType = option.allowedValues
@@ -109,34 +107,36 @@ languages.forEach((lang) => {
       markdownChunks.push(`  <td>${parseMarkdown(optType)}</td>`);
 
       if (!opts?.noDefaults) {
-        markdownChunks.push(`  <td>${parseMarkdown(option.defaultValue)}</td>`);
+        markdownChunks.push(`  <td>${parseMarkdown(option.defaultValue ?? "")}</td>`);
       }
       markdownChunks.push(`</tr>`);
 
       // Add a new row under the current one for the description, this uses the 'odd' / 'even' classes
       // to fake looking like a single row
       markdownChunks.push(`<tr class="option-description ${oddEvenClass}"><td colspan="3">`);
-      markdownChunks.push(`${parseMarkdown(description)}`.trim());
+      markdownChunks.push(`${parseMarkdown(description ?? "")}`.trim());
       markdownChunks.push(`</td></tr>\n`);
     });
     markdownChunks.push(`</tbody></table>\n`);
   }
 
-  renderTable("CLI Commands", options.cli, { noDefaults: true });
-  renderTable("Build Options", options.build, { noDefaults: true });
-  renderTable("Watch Options", options.watch, { noDefaults: true });
-  renderTable("Compiler Flags", options.options);
+  renderTable("CLI Commands", cliOpts.cli, { noDefaults: true });
+  renderTable("Build Options", cliOpts.build, { noDefaults: true });
+  renderTable("Watch Options", cliOpts.watch, { noDefaults: true });
+  renderTable("Compiler Flags", cliOpts.options);
 
   // Write the Markdown and JSON
-  const markdown = prettier.format(markdownChunks.join("\n"), { filepath: "index.md" });
-  const mdPath = join(__dirname, "..", "..", "output", lang + "-cli.md");
+  const markdown = prettier.format(markdownChunks.join("\n"), {
+    filepath: "index.md",
+  });
+  const mdPath = new URL(`../../output/${lang}-cli.md`, import.meta.url);
   writeFileSync(mdPath, markdown);
 });
 
 languages.forEach((lang) => {
-  const mdCLI = join(__dirname, "..", "..", "output", lang + "-cli.md");
+  const mdCLI = new URL(`../../output/${lang}-cli.md`, import.meta.url);
   // prettier-ignore
-  const compOptsPath = join(__dirname, "..", "..", "..", `documentation/copy/${lang}/project-config/Compiler Options.md`);
+  const compOptsPath = new URL(`../../../documentation/copy/${lang}/project-config/Compiler Options.md`, import.meta.url);
 
   if (existsSync(compOptsPath)) {
     const md = readFileSync(compOptsPath, "utf8");

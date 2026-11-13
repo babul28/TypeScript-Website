@@ -89,7 +89,7 @@ _Configure the TypeScript compiler_
 
 First we need to tell TypeScript how to build. Right click on `scripts` and click **New Item**. Then choose **TypeScript Configuration File** and use the default name of `tsconfig.json`
 
-![A screenshot showing the new file diaglogue with TypeScript JSON Config selected](/images/tutorials/aspnet/tsconfig.png)
+![A screenshot showing the new file dialogue with TypeScript JSON Config selected](/images/tutorials/aspnet/tsconfig.png)
 
 Replace the contents of the `tsconfig.json` file with:
 
@@ -115,7 +115,7 @@ Note: `"ESNext"` targets latest supported
 
 [`noImplicitAny`](/tsconfig#noImplicitAny) is good idea whenever you’re writing new code — you can make sure that you don’t write any untyped code by mistake. `"compileOnSave"` makes it easy to update your code in a running web app.
 
-#### _Set up NPM_
+### _Set up NPM_
 
 We need to setup NPM so that JavaScript packages can be downloaded. Right click on the project and select **New Item**. Then choose **NPM Configuration File** and use the default name of `package.json`.
 
@@ -136,7 +136,7 @@ After you should see an `npm` folder in your solution explorer
 
 ![Screenshot of VS showing npm folder](/images/tutorials/aspnet/npm.png)
 
-#### _Set up gulp_
+### _Set up gulp_
 
 Right click on the project and click **New Item**. Then choose **JavaScript File** and use the name of `gulpfile.js`
 
@@ -168,7 +168,7 @@ The first line tells Visual Studio to run the task ‘default’ after the build
 
 Now right-click on `gulpfile.js` and click Task Runner Explorer.
 
-![Screenshot of right clicking on the "Gulpfile.js" with 'Task Runner Exploere' selected](/images/tutorials/aspnet/taskrunner.png)
+![Screenshot of right clicking on the "Gulpfile.js" with 'Task Runner Explorer' selected](/images/tutorials/aspnet/taskrunner.png)
 
 If ‘default’ and ‘clean’ tasks don’t show up, refresh the explorer:
 

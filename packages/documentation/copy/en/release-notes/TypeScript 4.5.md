@@ -1,250 +1,11 @@
 ---
-title: TypeScript 4.5 Beta
+title: TypeScript 4.5
 layout: docs
 permalink: /docs/handbook/release-notes/typescript-4-5.html
-oneline: TypeScript 4.5 Beta elease Notes
+oneline: TypeScript 4.5 Release Notes
 ---
 
-### ECMAScript Module Support in Node.js
-
-For the last few years, Node.js has been working to support running ECMAScript modules (ESM).
-This has been a very difficult feature to support, since the foundation of the Node.js ecosystem is built on a different module system called CommonJS (CJS).
-Interoperating between the two brings large challenges, with many new features to juggle;
-however, support for ESM in Node.js is now largely implemented in Node.js 12 and later, and the dust has begun to settle.
-
-That's why TypeScript 4.5 brings two new `module` settings: `node12` and `nodenext`.
-
-```json tsconfig
-{
-  "compilerOptions": {
-    "module": "nodenext"
-  }
-}
-```
-
-These new modes bring a few high-level features which we'll explore here.
-
-#### `type` in `package.json` and New Extensions
-
-Node.js supports [a new setting in `package.json`](https://nodejs.org/api/packages.html#packages_package_json_and_file_extensions) called `type`.
-`"type"` can be set to either `"module"` or `"commonjs"`.
-
-```json5
-{
-  name: "my-package",
-  type: "module",
-
-  "//": "...",
-  dependencies: {},
-}
-```
-
-This setting controls whether `.js` files are interpreted as ES modules or CommonJS modules, and defaults to CommonJS when not set.
-When a file is considered an ES module, a few different rules come into play compared to CommonJS:
-
-- `import`/`export` statements (and top-level `await` in `nodenext`) can be used
-- relative import paths need full extensions (we have to write `import "./foo.js"` instead of `import "./foo"`)
-- imports might resolve differently from dependencies in `node_modules`
-- certain global-like values like `require()` and `process` cannot be used directly
-- CommonJS modules get imported under certain special rules
-
-We'll come back to some of these.
-
-To overlay the way TypeScript works in this system, `.ts` and `.tsx` files now work the same way.
-When TypeScript finds a `.ts`, `.tsx`, `.js`, or `.jsx` file, it will walk up looking for a `package.json` to see whether that file is an ES module, and use that to determine:
-
-- how to find other modules which that file imports
-- and how to transform that file if producing outputs
-
-When a `.ts` file is compiled as an ES module, ECMAScript `import`/`export` syntax is left alone in the `.js` output;
-when it's compiled as a CommonJS module, it will produce the same output you get today under [`module: commonjs`](/tsconfig#module).
-
-This also means paths resolve differently between `.ts` files that are ES modules and ones that are CJS modules.
-For example, let's say you have the following code today:
-
-```ts
-// ./foo.ts
-export function helper() {
-  // ...
-}
-
-// ./bar.ts
-import { helper } from "./foo"; // only works in CJS
-
-helper();
-```
-
-This code works in CommonJS modules, but will fail in ES modules because relative import paths need to use extensions.
-As a result, it will have to be rewritten to use the extension of the _output_ of `foo.ts` - so `bar.ts` will instead have to import from `./foo.js`.
-
-```ts
-// ./bar.ts
-import { helper } from "./foo.js"; // works in ESM & CJS
-
-helper();
-```
-
-This might feel a bit cumbersome at first, but TypeScript tooling like auto-imports and path completion will typically just do this for you.
-
-One other thing to mention is the fact that this applies to `.d.ts` files too.
-When TypeScript finds a `.d.ts` file in package, it is interpreted based on the containing package.
-
-#### New File Extensions
-
-The `type` field in `package.json` is nice because it allows us to continue using the `.ts` and `.js` file extensions which can be convenient;
-however, you will occasionally need to write a file that differs from what `type` specifies.
-You might also just prefer to always be explicit.
-
-Node.js supports two extensions to help with this: `.mjs` and `.cjs`.
-`.mjs` files are always ES modules, and `.cjs` files are always CommonJS modules, and there's no way to override these.
-
-In turn, TypeScript supports two new source file extensions: `.mts` and `.cts`.
-When TypeScript emits these to JavaScript files, it will emit them to `.mjs` and `.cjs` respectively.
-
-Furthermore, TypeScript also supports two new declaration file extensions: `.d.mts` and `.d.cts`.
-When TypeScript generates declaration files for `.mts` and `.cts`, their corresponding extensions will be `.d.mts` and `.d.cts`.
-
-Using these extensions is entirely optional, but will often be useful even if you choose not to use them as part of your primary workflow.
-
-#### CommonJS Interop
-
-Node.js allows ES modules to import CommonJS modules as if they were ES modules with a default export.
-
-```ts
-// ./foo.cts
-export function helper() {
-  console.log("hello world!");
-}
-
-// ./bar.mts
-import foo from "./foo.cjs";
-
-// prints "hello world!"
-foo.helper();
-```
-
-In some cases, Node.js also synthesizes named exports from CommonJS modules, which can be more convenient.
-In these cases, ES modules can use a "namespace-style" import (i.e. `import * as foo from "..."`), or named imports (i.e. `import { helper } from "..."`).
-
-```ts
-// ./foo.cts
-export function helper() {
-  console.log("hello world!");
-}
-
-// ./bar.mts
-import { helper } from "./foo.cjs";
-
-// prints "hello world!"
-foo.helper();
-```
-
-There isn't always a way for TypeScript to know whether these named imports will be synthesized, but TypeScript will err on being permissive and use some heuristics when importing from a file that is definitely a CommonJS module.
-
-One TypeScript-specific note about interop is the following syntax:
-
-```ts
-import foo = require("foo");
-```
-
-In a CommonJS module, this just boils down to a `require()` call, and in an ES module, this imports [`createRequire`](https://nodejs.org/api/module.html#module_module_createrequire_filename) to achieve the same thing.
-This will make code less portable on runtimes like the browser (which don't support `require()`), but will often be useful for interoperability.
-In turn, you can write the above example using this syntax as follows:
-
-```ts
-// ./foo.cts
-export function helper() {
-  console.log("hello world!");
-}
-
-// ./bar.mts
-import foo = require("./foo.cjs");
-
-foo.helper();
-```
-
-Finally, it's worth noting that the only way to import ESM files from a CJS module is using dynamic `import()` calls.
-This can present challenges, but is the behavior in Node.js today.
-
-You can [read more about ESM/CommonJS interop in Node.js here](https://nodejs.org/api/esm.html#esm_interoperability_with_commonjs).
-
-#### `package.json` Exports, Imports, and Self-Referencing
-
-Node.js supports [a new field for defining entry points in `package.json` called `"exports"`](https://nodejs.org/api/packages.html#packages_exports).
-This field is a more powerful alternative to defining `"main"` in `package.json`, and can control what parts of your package are exposed to consumers.
-
-Here's an `package.json` that supports separate entry-points for CommonJS and ESM:
-
-```json5
-// package.json
-{
-  name: "my-package",
-  type: "module",
-  exports: {
-    ".": {
-      // Entry-point for `import "my-package"` in ESM
-      import: "./esm/index.js",
-
-      // Entry-point for `require("my-package") in CJS
-      require: "./commonjs/index.cjs",
-    },
-  },
-
-  // CJS fall-back for older versions of Node.js
-  main: "./commonjs/index.cjs",
-}
-```
-
-There's a lot to this feature, [which you can read more about on the Node.js documentation](https://nodejs.org/api/packages.html).
-Here we'll try to focus on how TypeScript supports it.
-
-With TypeScript's original Node support, it would look for a `"main"` field, and then look for declaration files that corresponded to that entry.
-For example, if `"main"` pointed to `./lib/index.js`, TypeScript would look for a file called `./lib/index.d.ts`.
-A package author could override this by specifying a separate field called `"types"` (e.g. `"types": "./types/index.d.ts"`).
-
-The new support works similarly with [import conditions](https://nodejs.org/api/packages.html).
-By default, TypeScript overlays the same rules with import conditions - if you write an `import` from an ES module, it will look up the `import` field, and from a CommonJS module, it will look at the `require` field.
-If it finds them, it will look for a corresponding declaration file.
-If you need to point to a different location for your type declarations, you can add a `"types"` import condition.
-
-```json5
-// package.json
-{
-  name: "my-package",
-  type: "module",
-  exports: {
-    ".": {
-      // Entry-point for `import "my-package"` in ESM
-      import: "./esm/index.js",
-
-      // Entry-point for `require("my-package") in CJS
-      require: "./commonjs/index.cjs",
-
-      // Entry-point for TypeScript resolution
-      types: "./types/index.d.ts",
-    },
-  },
-
-  // CJS fall-back for older versions of Node.js
-  main: "./commonjs/index.cjs",
-
-  // Fall-back for older versions of TypeScript
-  types: "./types/index.d.ts",
-}
-```
-
-TypeScript also supports [the `"imports"` field of `package.json`](https://nodejs.org/api/packages.html#packages_imports) in a similar manner (looking for declaration files alongside corresponding files), and supports [packages self-referencing themselves](https://nodejs.org/api/packages.html#packages_self_referencing_a_package_using_its_name).
-These features are generally not as involved, but are supported.
-
-#### Your Feedback Wanted!
-
-As we continue working on TypeScript 4.5, we expect to see more documentation and polish go into this functionality.
-Supporting these new features has been an ambitious under-taking, and that's why we're looking for early feedback on it!
-Please try it out and let us know how it works for you.
-
-For more information, [you can see the implementing PR here](https://github.com/microsoft/TypeScript/pull/44501).
-
-### Supporting `lib` from `node_modules`
+## Supporting `lib` from `node_modules`
 
 To ensure that TypeScript and JavaScript support works well out of the box, TypeScript bundles a series of declaration files (`.d.ts` files).
 These declaration files represent the available APIs in the JavaScript language, and the standard browser DOM APIs.
@@ -315,17 +76,17 @@ async function doSomething(): Promise<[number, number]> {
 }
 ```
 
-Now `Promise.all` leverages combines certain features with `Awaited` to give much better inference results, and the above example works.
+Now `Promise.all` leverages the combination of certain features with `Awaited` to give much better inference results, and the above example works.
 
 For more information, you [can read about this change on GitHub](https://github.com/microsoft/TypeScript/pull/45350).
 
-### Template String Types as Discriminants
+## Template String Types as Discriminants
 
 TypeScript 4.5 now can narrow values that have template string types, and also recognizes template string types as discriminants.
 
 As an example, the following used to fail, but now successfully type-checks in TypeScript 4.5.
 
-```ts
+```ts twoslash
 export interface Success {
     type: `${string}Success`;
     body: string;
@@ -338,15 +99,15 @@ export interface Error {
 
 export function handler(r: Success | Error) {
     if (r.type === "HttpSuccess") {
-        // 'r' has type 'Success'
-        let token = r.body;
+        const token = r.body;
+        //            ^?
     }
 }
 ```
 
 For more information, [see the change that enables this feature](https://github.com/microsoft/TypeScript/pull/46137).
 
-### `module es2022`
+## `module es2022`
 
 Thanks to [Kagami S. Rosylight](https://github.com/saschanaz), TypeScript now supports a new `module` setting: `es2022`.
 The main feature in [`module es2022`](/tsconfig#module) is top-level `await`, meaning you can use `await` outside of `async` functions.
@@ -354,7 +115,7 @@ This was already supported in `--module esnext` (and now [`--module nodenext`](/
 
 You can [read up more on this change here](https://github.com/microsoft/TypeScript/pull/44656).
 
-### Tail-Recursion Elimination on Conditional Types
+## Tail-Recursion Elimination on Conditional Types
 
 TypeScript often needs to gracefully fail when it detects possibly infinite recursion, or any type expansions that can take a long time and affect your editor experience.
 As a result, TypeScript has heuristics to make sure it doesn't go off the rails when trying to pick apart an infinitely-deep type, or working with types that generate a lot of intermediate results.
@@ -418,7 +179,7 @@ type GetCharsHelper<S, Acc> =
 
 You can read up more on the implementation [here](https://github.com/microsoft/TypeScript/pull/45711).
 
-### Disabling Import Elision
+## Disabling Import Elision
 
 There are some cases where TypeScript can't detect that you're using an import.
 For example, take the following code:
@@ -473,7 +234,7 @@ That makes another TypeScript 4.5 feature, [`type` modifiers on import names](#t
 
 For more information, [see the pull request here](https://github.com/microsoft/TypeScript/pull/44619).
 
-### `type` Modifiers on Import Names
+## `type` Modifiers on Import Names
 
 As mentioned above, [`preserveValueImports`](/tsconfig#preserveValueImports) and [`isolatedModules`](/tsconfig#isolatedModules) have special requirements so that there's no ambiguity for build tools whether it's safe to drop type imports.
 
@@ -525,7 +286,7 @@ export class Thing {
 
 For more information, see [the changes on GitHub](https://github.com/microsoft/TypeScript/pull/45998).
 
-### Private Field Presence Checks
+## Private Field Presence Checks
 
 TypeScript 4.5 supports an ECMAScript proposal for checking whether an object has a private field on it.
 You can now write a class with a `#private` field member and see whether another object has the same field by using the `in` operator.
@@ -552,7 +313,7 @@ As such, TypeScript is able to appropriately narrow the type of `other` on each 
 
 We'd like to extend a big thanks to our friends at Bloomberg [who contributed this pull request](https://github.com/microsoft/TypeScript/pull/44648): [Ashley Claymore](https://github.com/acutmore), [Titian Cernicova-Dragomir](https://github.com/dragomirtitian), [Kubilay Kahveci](https://github.com/mkubilayk), and [Rob Palmer](https://github.com/robpalme)!
 
-### Import Assertions
+## Import Assertions
 
 TypeScript 4.5 supports an ECMAScript proposal for _import assertions_.
 This is a syntax used by runtimes to make sure that an import has an expected format.
@@ -583,7 +344,62 @@ The expected type of that second argument is defined by a new type called `Impor
 
 We'd like to thank [Wenlu Wang](https://github.com/Kingwl/) for [implementing this feature](https://github.com/microsoft/TypeScript/pull/40698)!
 
-### Faster Load Time with `realPathSync.native`
+## Const Assertions and Default Type Arguments in JSDoc
+
+TypeScript 4.5 brings some extra expressivity to our JSDoc support.
+
+One example of this is with `const` assertions. In TypeScript, you can get a more precise and immutable type by writing `as const` after a literal.
+
+```ts
+// type is { prop: string }
+let a = { prop: "hello" };
+
+// type is { readonly prop: "hello" }
+let b = { prop: "hello" } as const;
+```
+
+In JavaScript files, you can now use JSDoc type assertions to achieve the same thing.
+
+```ts
+// type is { prop: string }
+let a = { prop: "hello" };
+
+// type is { readonly prop: "hello" }
+let b = /** @type {const} */ ({ prop: "hello" });
+```
+
+As a reminder, JSDoc type assertions comments start with `/** @type {TheTypeWeWant} */` and are followed by a parenthesized expression:
+
+```js
+/** @type {TheTypeWeWant} */` (someExpression)
+```
+
+TypeScript 4.5 also adds default type arguments to JSDoc, which means the following `type` declaration in TypeScript:
+
+```ts
+type Foo<T extends string | number = number> = { prop: T };
+```
+
+can be rewritten as the following `@typedef` declaration in JavaScript:
+
+```js
+/**
+ * @template {string | number} [T=number]
+ * @typedef Foo
+ * @property prop {T}
+ */
+
+// or
+
+/**
+ * @template {string | number} [T=number]
+ * @typedef {{ prop: T }} Foo
+ */
+ ```
+ 
+For more information, see [the pull request for const assertions](https://github.com/microsoft/TypeScript/pull/45464) along with [the changes for type argument defaults](https://github.com/microsoft/TypeScript/pull/45483).
+
+## Faster Load Time with `realPathSync.native`
 
 TypeScript now leverages a system-native implementation of the Node.js `realPathSync` function on all operating systems.
 
@@ -592,7 +408,7 @@ On certain codebases, this change sped up project loading by 5-13% (depending on
 
 For more information, see [the original change here](https://github.com/microsoft/TypeScript/pull/44966), along with [the 4.5-specific changes here](https://github.com/microsoft/TypeScript/pull/44966).
 
-### Snippet Completions for JSX Attributes
+## Snippet Completions for JSX Attributes
 
 TypeScript 4.5 brings _snippet completions_ for JSX attributes.
 When writing out an attribute in a JSX tag, TypeScript will already provide suggestions for those attributes;
@@ -607,7 +423,7 @@ TypeScript will typically use the type of an attribute to figure out what kind o
 Keep in mind, this feature will only work in newer versions of Visual Studio Code, so you might have to use an Insiders build to get this working.
 For more information, [read up on the original pull request](https://github.com/microsoft/TypeScript/pull/45903)
 
-### Better Editor Support for Unresolved Types
+## Better Editor Support for Unresolved Types
 
 In some cases, editors will leverage a lightweight "partial" semantic mode - either while the editor is waiting for the full project to load, or in contexts like [GitHub's web-based editor](https://docs.github.com/en/codespaces/developing-in-codespaces/web-based-editor).
 
@@ -629,19 +445,19 @@ Keep in mind, you'll always get an error in regular scenarios to tell you when a
 
 For more information, [see the implementation here](https://github.com/microsoft/TypeScript/pull/45976).
 
-### Breaking Changes
+## Breaking Changes
 
-#### `lib.d.ts` Changes
+### `lib.d.ts` Changes
 
 TypeScript 4.5 contains changes to its built-in declaration files which may affect your compilation;
 however, [these changes were fairly minimal](https://github.com/microsoft/TypeScript-DOM-lib-generator/issues/1143), and we expect most code will be unaffected.
 
-#### Inference Changes from `Awaited`
+### Inference Changes from `Awaited`
 
 Because `Awaited` is now used in `lib.d.ts` and as a result of `await`, you may see certain generic types change that might cause incompatibilities;
 however, given many intentional design decisions around `Awaited` to avoid breakage, we expect most code will be unaffected.
 
-#### Compiler Options Checking at the Root of `tsconfig.json`
+### Compiler Options Checking at the Root of `tsconfig.json`
 
 It's an easy mistake to accidentally forget about the `compilerOptions` section in a `tsconfig.json`.
 To help catch this mistake, in TypeScript 4.5, it is an error to add a top-level field which matches any of the available options in `compilerOptions` _without_ having also defined `compilerOptions` in that `tsconfig.json`.

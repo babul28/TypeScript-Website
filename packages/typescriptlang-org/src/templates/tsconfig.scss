@@ -1,12 +1,16 @@
 @import "../style/globals.scss";
 
+.tsconfig-page-title {
+  margin-bottom: 1.5rem;
+}
+
 .tsconfig {
   margin-bottom: 6rem;
   // Drastically reduce the padding and margins to make it fit phones
   &.raised {
     @media (max-width: $screen-xs) {
       margin: 0;
-      padding: 0.5rem;
+      padding: 2rem;
 
       #full-option-list {
         padding: 10px;
@@ -33,12 +37,12 @@
       }
     }
   }
-  &.button.open {
+  &.button.closed {
     svg {
       transform: rotate(270deg);
     }
   }
-  &.button.closed {
+  &.button.open {
     a {
       text-decoration: none;
       color: var(--text-color);
@@ -46,6 +50,10 @@
   }
 
   .tsconfig-quick-nav {
+    a {
+      text-decoration: underline;
+    }
+
     &.grouped {
       border-left: 1px solid var(--text-color);
       margin-bottom: 3rem;
@@ -53,7 +61,7 @@
     margin-left: -1rem;
     padding-left: 1rem;
 
-    h4 {
+    h3 {
       font-weight: normal;
       margin-bottom: 0.1rem;
       a {
@@ -67,11 +75,12 @@
       @media (max-width: $screen-md) {
         flex-direction: column;
       }
-      h5 {
+      h3, h4 {
         width: 160px;
         flex: 0 0 auto;
       }
       ol {
+        box-sizing: border-box;
         max-width: 100%;
         flex: 1 1 auto;
       }
@@ -79,9 +88,11 @@
         list-style: none;
         display: inline-block;
         margin-left: 8px;
+        max-width: calc(100% - 8px);
+        overflow-wrap: anywhere;
         a {
           color: var(--text-color);
-          text-decoration: none;
+          text-decoration: underline;
           &:hover {
             text-decoration: underline;
           }
@@ -123,7 +134,8 @@
       @media (max-width: $screen-xs) {
         width: 46%;
         h5 {
-          overflow-x: hidden;
+          overflow-wrap: break-word;
+          word-break: break-word;
         }
       }
 
@@ -216,12 +228,12 @@
 
     > h3 {
       margin-bottom: 0;
-      overflow-x: hidden;
+      word-break: break-word;
+      overflow-wrap: break-word;
       offset-anchor: -30px;
 
       @media (max-width: $screen-sm) {
         display: block;
-        overflow-y: hidden;
       }
 
       > a {
@@ -244,6 +256,10 @@
         border-right: 1px solid gray;
         padding-right: 20px;
         word-wrap: break-word;
+
+        pre .error > span {
+          min-width: 0;
+        }
 
         @media (max-width: $screen-xs) {
           border-right: none;

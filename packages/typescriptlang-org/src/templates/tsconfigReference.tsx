@@ -38,39 +38,91 @@ const TSConfigReferenceTemplateComponent = (props: Props) => {
   }
 
   useEffect(() => {
+    const calculateOffset = (
+      target: HTMLElement,
+      subnav: HTMLElement | null
+    ) => {
+      let offset = target.offsetTop
+      if (subnav) {
+        // Subtract height of subnav if "position: sticky" is active
+        const style = window.getComputedStyle(subnav)
+        if (style.position === "sticky") {
+          offset -= subnav.clientHeight
+        }
+      }
+      return offset
+    }
+
+    const scrollToHash = (hash: string) => {
+      if (hash === "#") return
+      const target = document.querySelector<HTMLElement>(hash)
+      if (!target) return
+
+      // Search for subnav if the target is a descendant of <article>
+      let search = target
+      let subnav: HTMLElement | null = null
+      while (search.parentElement) {
+        search = search.parentElement
+        if (search.tagName === "ARTICLE") {
+          subnav = search.querySelector("nav")
+          break
+        }
+      }
+
+      // Smooth scroll to the target
+      const offset = calculateOffset(target, subnav)
+      if (!offset) return
+      window.scrollTo({
+        top: offset,
+        behavior: "smooth",
+      })
+    }
+
     // Overrides the anchor behavior to smooth scroll instead
-    // Came from https://css-tricks.com/sticky-smooth-active-nav/
-    const subnavLinks = document.querySelectorAll<HTMLAnchorElement>(".tsconfig .tsconfig-quick-nav-category li a");
+    const hashLinks = document.querySelectorAll<HTMLAnchorElement>(
+      ".tsconfig a[href^='#']"
+    )
+    hashLinks.forEach(link => {
+      link.addEventListener("click", (event: MouseEvent) => {
+        event.preventDefault()
+        scrollToHash(link.hash)
 
-    subnavLinks.forEach(link => {
-      link.addEventListener("click", event => {
-        event.preventDefault();
-
-        let target = document.querySelector(event.target!["hash"]) as HTMLElement;
-        if (target) target.parentElement!.parentElement!.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Update URL without triggering default scroll behavior
+        window.history.pushState(null, "", link.hash)
       })
     })
 
     // Sets the current selection
+    // Based on https://css-tricks.com/sticky-smooth-active-nav/
+    const subnavs = document.querySelectorAll<HTMLElement>(
+      ".tsconfig article nav"
+    )
     const updateSidebar = () => {
-      const fromTop = window.scrollY;
-      let currentPossibleAnchor: HTMLAnchorElement | undefined
+      const fromTop = window.scrollY
 
-      // Scroll down to find the highest anchor on the screen
-      subnavLinks.forEach(link => {
-        const section = document.querySelector<HTMLDivElement>(link.hash);
-        if (!section) { return }
-        const isBelow = section.offsetTop - 100 <= fromTop
-        if (isBelow) currentPossibleAnchor = link
-      });
+      subnavs.forEach(subnav => {
+        const subnavLinks = subnav.querySelectorAll<HTMLAnchorElement>(
+          "a[href^='#']"
+        )
+        let currentPossibleAnchor: HTMLAnchorElement | undefined
 
-      // Then set the active tag
-      subnavLinks.forEach(link => {
-        if (link === currentPossibleAnchor) {
-          link.classList.add("current");
-        } else {
-          link.classList.remove("current");
-        }
+        // Scroll down to find the highest anchor on the screen
+        subnavLinks.forEach(link => {
+          const section = document.querySelector<HTMLElement>(link.hash)
+          if (!section) return
+          const offset = calculateOffset(section, subnav)
+          const isBelow = offset - 100 <= fromTop
+          if (isBelow) currentPossibleAnchor = link
+        })
+
+        // Then set the active tag
+        subnavLinks.forEach(link => {
+          if (link === currentPossibleAnchor) {
+            link.classList.add("current")
+          } else {
+            link.classList.remove("current")
+          }
+        })
       })
     }
 
@@ -99,11 +151,12 @@ const TSConfigReferenceTemplateComponent = (props: Props) => {
   }
 
   const showCategories = (categories: Category[], sectionName?: string) => {
+    const CategoryHeading = sectionName ? "h4" : "h3"
     return <div className={sectionName ? "tsconfig-quick-nav grouped" : "tsconfig-quick-nav"}>
-      {sectionName ? <h4><code><a href={`#${sectionName}`}>"{sectionName}"</a></code></h4> : <div />}
+      {sectionName ? <h3><code><a href={`#${sectionName}`}>"{sectionName}"</a></code></h3> : <div />}
       {
         categories.map(c => <div className="tsconfig-quick-nav-category" key={c.display}>
-          <h5 id={`quick-nav-${c.anchor}`}>{c.display}</h5>
+          <CategoryHeading id={`quick-nav-${c.anchor}`}>{c.display}</CategoryHeading>
           <ol aria-labelledby={`quick-nav-${c.anchor}`}>
             {c.options.map(o => <li key={o.name}><code><a href={anchor(sectionName, o.anchor)}>{o.anchor}</a>{joiner(c.options, o)}</code></li>)}
           </ol>
@@ -126,8 +179,10 @@ const TSConfigReferenceTemplateComponent = (props: Props) => {
   return (
     <Layout title={i("tsconfig_title")} description={i("tsconfig_description")} lang={props.pageContext.locale}>
 
+      <h1 className="tsconfig-page-title">TSConfig Reference</h1>
+
       <div className={`tsconfig raised main-content-block markdown button ${openInfo ? "open" : "closed"}`} >
-        <a href="#" onClick={toggleInfoState}>
+        <a href="#" onClick={toggleInfoState} aria-expanded={openInfo} role="button">
           <h2>
             <svg width="22" height="13" viewBox="0 0 22 13" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M0.5 1L11 11.5L21.5 1" stroke="black" />

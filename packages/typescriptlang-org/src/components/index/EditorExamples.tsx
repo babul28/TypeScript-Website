@@ -36,34 +36,33 @@ export const EditorExamples = () => {
     return false;
   };
 
-   return (
+  return (
     <div className="headline-diagram">
       <div className="slides">
 
-      <div className="editor ts front">
-      <ul className="editor-tabs"> 
-      <li className={index === 0 ? "selected" : ""} ><a href="#" role="presentation" onClick={goto(0) }>{i("index_2_tab_1")}</a></li>
-      <li className={index === 1 ? "selected" : ""} ><a href="#" role="presentation" onClick={goto(1) }>{i("index_2_tab_2")}</a></li>
-      <li className={index === 2 ? "selected" : ""} ><a href="#" role="presentation" onClick={goto(2) }>{i("index_2_tab_3")}</a></li>
-      <li className={index === 3 ? "selected" : ""} ><a href="#" role="presentation" onClick={goto(3) }>{i("index_2_tab_4")}</a></li>
-      {/* <li className={index === 4 ? "selected" : ""} ><a href="#" role="presentation" onClick={goto(4) }>{i("index_2_tab_5")}</a></li> */}
-    </ul>
-        <div className="content" id="above-the-fold-headline-code">
+        <div className="editor ts front">
+          <ul className="editor-tabs" role="tablist">
+            <li id="tabId1" className={index === 0 ? "selected" : ""} role="tab" tabIndex={index === 0 ? 0 : -1} onClick={goto(0)} aria-selected={index === 0}>{i("index_2_tab_1")}</li>
+            <li id="tabId2" className={index === 1 ? "selected" : ""} role="tab" tabIndex={index === 1 ? 0 : -1} onClick={goto(1)} aria-selected={index === 1}>{i("index_2_tab_2")}</li>
+            <li id="tabId3" className={index === 2 ? "selected" : ""} role="tab" tabIndex={index === 2 ? 0 : -1} onClick={goto(2)} aria-selected={index === 2}>{i("index_2_tab_3")}</li>
+            <li id="tabId4" className={index === 3 ? "selected" : ""} role="tab" tabIndex={index === 3 ? 0 : -1} onClick={goto(3)} aria-selected={index === 3}>{i("index_2_tab_4")}</li>
+          </ul>
+          <div className="content" id="above-the-fold-headline-code">
             <div className="text">
-            {{
-              0: (
-                <ShowErrorsExample />
-              ),
-              1: (
-                <TypeDefinitionsExample />
-              ),
-              2: (
-                <InterfaceExample />
-              ),
-              3: (
-              <ReactExample />
-              ),
-            }[index]}
+              {{
+                0: (
+                  <ShowErrorsExample />
+                ),
+                1: (
+                  <TypeDefinitionsExample />
+                ),
+                2: (
+                  <InterfaceExample />
+                ),
+                3: (
+                  <ReactExample />
+                ),
+              }[index]}
             </div>
           </div>
         </div>
@@ -74,19 +73,19 @@ export const EditorExamples = () => {
         className="next-headline-button"
         href="#"
         onClick={next}
-        role="presentation"
         aria-label="Show code sample"
+        role="button"
       >
-            <svg
-              width="11"
-              height="15"
-              viewBox="0 0 11 15"
-              fill="#F1F1F1"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M0 14.5V0.5L10.5 7L0 14.5Z" fill="black" />
-            </svg>
+        <svg
+          width="11"
+          height="15"
+          viewBox="0 0 11 15"
+          fill="#F1F1F1"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M0 14.5V0.5L10.5 7L0 14.5Z" />
+        </svg>
       </a>
-      </div>
+    </div>
   );
 };

@@ -4,7 +4,7 @@ import { ATABootstrapConfig } from "."
 
 export const getNPMVersionsForModule = (config: ATABootstrapConfig, moduleName: string) => {
   const url = `https://data.jsdelivr.com/v1/package/npm/${moduleName}`
-  return api<{ tags: Record<string, string>; versions: string[] }>(config, url)
+  return api<{ tags: Record<string, string>; versions: string[] }>(config, url, { cache: "no-store" })
 }
 
 export const getNPMVersionForModuleReference = (config: ATABootstrapConfig, moduleName: string, reference: string) => {
@@ -38,10 +38,10 @@ export const getDTSFileForModuleWithVersion = async (
   version: string,
   file: string
 ) => {
-  // file has a prefix / in falr mode
+  // file comes with a prefix / 
   const url = `https://cdn.jsdelivr.net/npm/${moduleName}@${version}${file}`
   const f = config.fetcher || fetch
-  const res = await f(url, { headers: { "User-Agent": `Type Acquisition ${config.projectName}` } })
+  const res = await f(url)
   if (res.ok) {
     return res.text()
   } else {
@@ -49,9 +49,10 @@ export const getDTSFileForModuleWithVersion = async (
   }
 }
 
-function api<T>(config: ATABootstrapConfig, url: string): Promise<T | Error> {
+function api<T>(config: ATABootstrapConfig, url: string, init?: RequestInit): Promise<T | Error> {
   const f = config.fetcher || fetch
-  return f(url, { headers: { "User-Agent": `Type Acquisition ${config.projectName}` } }).then(res => {
+
+  return f(url, init).then(res => {
     if (res.ok) {
       return res.json().then(f => f as T)
     } else {

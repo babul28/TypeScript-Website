@@ -109,12 +109,12 @@ interface User {
   id: number;
 }
 // ---cut---
-function getAdminUser(): User {
-  //...
-}
-
 function deleteUser(user: User) {
   // ...
+}
+
+function getAdminUser(): User {
+  //...
 }
 ```
 
@@ -124,7 +124,7 @@ You'll see that there are two syntaxes for building types: [Interfaces and Types
 
 ## Composing Types
 
-With TypeScript, you can create complex types by combining simple ones. There are two popular ways to do so: with unions, and with generics.
+With TypeScript, you can create complex types by combining simple ones. There are two popular ways to do so: unions and generics.
 
 ### Unions
 
@@ -285,5 +285,5 @@ If the object or class has all the required properties, TypeScript will say they
 
 This was a brief overview of the syntax and tools used in everyday TypeScript. From here, you can:
 
-- Read the full Handbook [from start to finish](/docs/handbook/intro.html) (30m)
+- Read the full Handbook [from start to finish](/docs/handbook/intro.html)
 - Explore the [Playground examples](/play#show-examples)

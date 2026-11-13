@@ -97,8 +97,9 @@ const hrefForExample = (
     .map(key => key + "=" + params[key])
     .join("&")
 
-  const langURL = lang === "en" ? "" : lang
-  return `${langURL}/play/?${prefix + queryParams}#${hash}`
+  const query = [prefix, queryParams].filter(Boolean).join("&")
+  const langPrefix = lang === "en" ? "" : `/${lang}`
+  return `${langPrefix}/play/?${query}#${hash}`
 }
 
 const getCompilerDetailsFromCode = (contents: string) => {
@@ -112,10 +113,10 @@ const getCompilerDetailsFromCode = (contents: string) => {
       .split("//// {")[1]
       .split("}\n")[0]
     contents = contents.split("\n").slice(1).join("\n")
-    const code = "({" + preJSON + "})"
+    const code = "{" + preJSON + "}"
 
     try {
-      const obj = eval(code)
+      const obj = JSON.parse(code)
       if (obj.title) {
         inlineTitle = obj.title
         delete obj.title

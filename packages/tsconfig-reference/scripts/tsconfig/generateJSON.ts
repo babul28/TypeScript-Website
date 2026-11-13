@@ -3,17 +3,17 @@
 
 /** Run with:
      node --inspect-brk ./node_modules/.bin/ts-node packages/tsconfig-reference/scripts/tsconfig/generateJSON.ts
-     yarn ts-node packages/tsconfig-reference/scripts/tsconfig/generateJSON.ts
+     pnpm ts-node packages/tsconfig-reference/scripts/tsconfig/generateJSON.ts
 */
 
 console.log("TSConfig Ref: JSON for TSConfig");
 
-import * as ts from "typescript";
+import ts from "typescript-for-docs";
 
 import { CommandLineOptionBase } from "../types";
 import { writeFileSync } from "fs";
 import { join } from "path";
-import { format } from "prettier";
+import prettier from "prettier";
 import {
   denyList,
   relatedTo,
@@ -24,14 +24,21 @@ import {
   allowedValues,
   configToRelease,
   additionalOptionDescriptors,
-} from "../tsconfigRules";
+} from "../tsconfigRules.js";
 import { CompilerOptionName } from "../../data/_types";
 
-const toJSONString = (obj) => format(JSON.stringify(obj, null, "  "), { filepath: "thing.json" });
-const writeJSON = (name, obj) =>
-  writeFileSync(join(__dirname, "..", "..", "data", name), toJSONString(obj));
-const writeString = (name, text) =>
-  writeFileSync(join(__dirname, "..", "..", "data", name), format(text, { filepath: name }));
+const toJSONString = (obj: any) =>
+  prettier.format(JSON.stringify(obj, null, "  "), { filepath: "thing.json" });
+const writeJSON = (name: string, obj: any) =>
+  writeFileSync(
+    new URL(`../../data/${name}`, import.meta.url),
+    toJSONString(obj)
+  );
+const writeString = (name: string, text: string) =>
+  writeFileSync(
+    new URL(`../../data/${name}`, import.meta.url),
+    prettier.format(text, { filepath: name })
+  );
 
 export interface CompilerOptionJSON extends CommandLineOptionBase {
   releaseVersion?: string;
@@ -140,7 +147,7 @@ allOptions.forEach((option) => {
   // Convert JS Map types to a JSONable obj
   if ("type" in option && typeof option.type === "object" && "get" in option.type) {
     // Option definitely has a map obj, need to resolve it
-    const newOptions = {};
+    const newOptions: Record<string, any> = {};
     option.type.forEach((v, k) => (newOptions[k] = v));
     // @ts-ignore
     option.type = newOptions;
@@ -148,8 +155,8 @@ allOptions.forEach((option) => {
 
   // Convert categories to be something which can be looked up
   if ("category" in option) {
-    categories.add(option.category);
-    option.categoryCode = option.category.code;
+    categories.add(option.category!);
+    option.categoryCode = option.category!.code;
     option.category = undefined;
   } else if (option.name in additionalOptionDescriptors) {
     // Set category code manually because some options have no category
@@ -175,15 +182,16 @@ allOptions.forEach((option) => {
   }
 
   if (name in allowedValues) {
-    option.allowedValues = allowedValues[name];
+    option.allowedValues = (allowedValues as any)[name];
   }
 
   if (name in configToRelease) {
-    option.releaseVersion = configToRelease[name];
+    option.releaseVersion = (configToRelease as any)[name];
   }
 
   if (name in defaultsForOptions) {
-    option.defaultValue = defaultsForOptions[name];
+    const defaultValue = (defaultsForOptions as any)[name];
+    option.defaultValue = Array.isArray(defaultValue) ? defaultValue.join(" ") : defaultValue;
   }
 
   if (buildOpts.includes(name)) option.hostObj = "build";
@@ -195,9 +203,7 @@ allOptions.forEach((option) => {
   delete option.showInSimplifiedHelpView;
 });
 
-writeJSON("tsconfigOpts.json", {
-  options: allOptions,
-});
+writeJSON("tsconfigOpts.json", allOptions);
 
 // Improve the typing for the rules
 writeString(
@@ -207,7 +213,7 @@ writeString(
     .join("' | '")}'`
 );
 
-const categoryMap = {};
+const categoryMap: Record<string, any> = {};
 categories.forEach((c) => (categoryMap[c.code] = c));
 
 // Add custom categories, for custom compiler flags

@@ -22,6 +22,8 @@ import { createDefaultMapFromCDN } from "@typescript/vfs"
 import { twoslasher, TwoSlashReturn } from "@typescript/twoslash"
 import { getPlaygroundUrls } from "../../lib/playgroundURLs";
 
+import type * as playgroundPackage from "../../../static/js/playground";
+
 type TwoSlashReturns = import("@typescript/twoslash").TwoSlashReturn
 
 type Props = {}
@@ -40,6 +42,8 @@ const Play: React.FC<Props> = (props) => {
     window.reactDOM = ReactDOM
     // @ts-ignore - so that plugins etc can use local functions
     window.i = i
+    // @ts-ignore - same as window.i but hopefully not overwritten by App Insights
+    window.__tsLocalize = i
 
     const getLoaderScript = document.createElement('script');
     getLoaderScript.src = withPrefix("/js/vs.loader.js");
@@ -49,20 +53,20 @@ const Play: React.FC<Props> = (props) => {
 
       let tsVersionParam = params.get("ts")
       // handle the nightly lookup 
-      if (!tsVersionParam || tsVersionParam && tsVersionParam === "Nightly" || tsVersionParam === "next") {
-        // Avoids the CDN to doubly skip caching
-        const nightlyLookup = await fetch("https://tswebinfra.blob.core.windows.net/indexes/next.json", { cache: "no-cache" })
+      if (!tsVersionParam || tsVersionParam === "Nightly" || tsVersionParam === "next") {
+        // The CDN is configured to have a short TTL on the indexes directory.
+        const nightlyLookup = await fetch("https://playgroundcdn.typescriptlang.org/indexes/next.json", { cache: "no-cache" })
         const nightlyJSON = await nightlyLookup.json()
         tsVersionParam = nightlyJSON.version
       }
-      // Allow prod/staging builds to set a custom commit prefix to bust caches
+      // Allow prod builds to set a custom commit prefix to bust caches
       const { sandboxRoot, playgroundRoot, playgroundWorker } = getPlaygroundUrls()
 
       // @ts-ignore
       const re: any = global.require
       re.config({
         paths: {
-          vs: `https://typescript.azureedge.net/cdn/${tsVersionParam}/monaco/dev/vs`,
+          vs: `https://playgroundcdn.typescriptlang.org/cdn/${tsVersionParam}/monaco/dev/vs`,
           "typescript-sandbox": sandboxRoot,
           "typescript-playground": playgroundRoot,
           "unpkg": "https://unpkg.com/",
@@ -71,7 +75,7 @@ const Play: React.FC<Props> = (props) => {
         ignoreDuplicateModules: ["vs/editor/editor.main"],
       });
 
-      re(["vs/editor/editor.main", "vs/language/typescript/tsWorker", "typescript-sandbox/index", "typescript-playground/index"], async (main: typeof import("monaco-editor"), tsWorker: any, sandbox: typeof import("@typescript/sandbox"), playground: typeof import("@typescript/playground")) => {
+      re(["vs/editor/editor.main", "vs/language/typescript/tsWorker", "typescript-sandbox/index", "typescript-playground/index"], async (main: typeof import("monaco-editor"), tsWorker: any, sandbox: typeof import("@typescript/sandbox"), playground: typeof playgroundPackage) => {
         // Importing "vs/language/typescript/tsWorker" will set ts as a global
         const ts = (global as any).ts
         const isOK = main && ts && sandbox && playground
@@ -131,34 +135,12 @@ const Play: React.FC<Props> = (props) => {
         sandboxEnv.setDidUpdateCompilerSettings(updateDTSEnv)
         updateDTSEnv(sandboxEnv.getCompilerOptions())
 
-        // When there are multi-file playgrounds, we should show the implicit filename, ideally this would be
-        // something more inline, but we can abuse the code lenses for now
-        main.languages.registerCodeLensProvider(sandboxEnv.language, {
-          provideCodeLenses: function (model, token) {
-            const lenses = !showFileCodeLens ? [] : [{
-              range: {
-                startLineNumber: 1,
-                startColumn: 1,
-                endLineNumber: 2,
-                endColumn: 1
-              },
-              id: "implicit-filename-first",
-              command: {
-                id: "noop",
-                title: "// @filename: input.tsx"
-              }
-            }]
-            return { lenses, dispose: () => { } };
-          }
-        })
-
-        let showFileCodeLens = false
+       
         const debouncedTwoslash = debounce(() => {
           if (dtsMap) runTwoslash()
-          showFileCodeLens = sandboxEnv.getText().includes("// @filename")
         }, 1000)
 
-        sandboxEnv.editor.onDidChangeModelContent(debouncedTwoslash)
+        sandboxEnv.editor.onDidChangeModelContent(() => debouncedTwoslash())
 
         let currentTwoslashResults: Error | TwoSlashReturn | undefined = undefined
         let currentDTSMap: Map<string, string> | undefined = undefined

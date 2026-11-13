@@ -11,7 +11,7 @@ const ata = setupTypeAcquisition({
   typescript: ts,
   logger: console,
   delegate: {
-    receivedFile: (path: string, code: string) => {
+    receivedFile: (code: string, path: string) => {
       // Add code to your runtime at the path...
     },
     started: () => {
@@ -53,7 +53,7 @@ The library will
 - Recurse though their dependencies too.
 - Once those are done, trigger `finished` with a Map of the `vfs` if you prefer to set them in bulk.
 
-### Nicities
+### Niceties
 
 Users can give a specific npm version or tag to work from instead of the default "latest":
 

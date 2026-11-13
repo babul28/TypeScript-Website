@@ -6,7 +6,8 @@ import {
   createURLQueryWithCompilerOptions,
 } from "./compilerOptions"
 import lzstring from "./vendor/lzstring.min"
-import { supportedReleases } from "./releases"
+
+import { supportedReleases } from "./release_data"
 import { getInitialCode } from "./getInitialCode"
 import { extractTwoSlashCompilerOptions, twoslashCompletions } from "./twoslashSupport"
 import * as tsvfs from "./vendor/typescript-vfs"
@@ -48,9 +49,9 @@ export type SandboxConfig = {
     groupEnd: (...args: any[]) => void
   }
 } & (
-    | { /** the ID of a dom node to add monaco to */ domID: string }
-    | { /** the dom node to add monaco to */ elementToAppend: HTMLElement }
-  )
+  | { /** the ID of a dom node to add monaco to */ domID: string }
+  | { /** the dom node to add monaco to */ elementToAppend: HTMLElement }
+)
 
 const languageType = (config: SandboxConfig) => (config.filetype === "js" ? "javascript" : "typescript")
 
@@ -76,7 +77,10 @@ const sharedEditorOptions: import("monaco-editor").editor.IEditorOptions = {
   },
   acceptSuggestionOnCommitCharacter: !isAndroid,
   acceptSuggestionOnEnter: !isAndroid ? "on" : "off",
-  accessibilitySupport: !isAndroid ? "on" : "off",
+  accessibilitySupport: !isAndroid ? "auto" : "off",
+  inlayHints: {
+    enabled: true,
+  },
 }
 
 /** The default settings which we apply a partial over */
@@ -110,16 +114,16 @@ export const createTypeScriptSandbox = (
   monaco: Monaco,
   ts: typeof import("typescript")
 ) => {
-  const config = { ...defaultPlaygroundSettings(), ...partialConfig }
-  if (!("domID" in config) && !("elementToAppend" in config))
+  if (!("domID" in partialConfig) && !("elementToAppend" in partialConfig))
     throw new Error("You did not provide a domID or elementToAppend")
 
+  const config = { ...defaultPlaygroundSettings(), ...partialConfig }
   const defaultText = config.suppressAutomaticallyGettingDefaultText
     ? config.text
     : getInitialCode(config.text, document.location)
 
   // Defaults
-  const compilerDefaults = getDefaultSandboxCompilerOptions(config, monaco)
+  const compilerDefaults = getDefaultSandboxCompilerOptions(config, monaco, ts)
 
   // Grab the compiler flags via the query params
   let compilerOptions: CompilerOptions
@@ -141,7 +145,10 @@ export const createTypeScriptSandbox = (
 
   const language = languageType(config)
   const filePath = createFileUri(config, compilerOptions, monaco)
-  const element = "domID" in config ? document.getElementById(config.domID) : (config as any).elementToAppend
+  const element = "elementToAppend" in config ? config.elementToAppend : document.getElementById(config.domID)
+  if (!element)
+    throw new Error("DOM element lookup by domID failed")
+
 
   const model = monaco.editor.createModel(defaultText, language, filePath)
   monaco.editor.defineTheme("sandbox", sandboxTheme)
@@ -244,7 +251,7 @@ export const createTypeScriptSandbox = (
   defaults.setCompilerOptions(compilerOptions)
 
   // To let clients plug into compiler settings changes
-  let didUpdateCompilerSettings = (opts: CompilerOptions) => { }
+  let didUpdateCompilerSettings = (opts: CompilerOptions) => {}
 
   const updateCompilerSettings = (opts: CompilerOptions) => {
     const newKeys = Object.keys(opts)
@@ -288,10 +295,13 @@ export const createTypeScriptSandbox = (
   }
 
   /** Gets the results of compiling your editor's code */
-  const getEmitResult = async () => {
+  const getEmitResult = async (
+    emitOnlyDtsFiles?: boolean,
+    forceDtsEmit?: boolean
+  ) => {
     const model = editor.getModel()!
     const client = await getWorkerProcess()
-    return await client.getEmitOutput(model.uri.toString())
+    return await client.getEmitOutput(model.uri.toString(), emitOnlyDtsFiles, forceDtsEmit)
   }
 
   /** Gets the JS  of compiling your editor's code */
@@ -308,11 +318,14 @@ export const createTypeScriptSandbox = (
     return (firstJS && firstJS.text) || ""
   }
 
+  const isDtsFile = (name: string) => /\.d\.([^\.]+\.)?[cm]?ts$/i.test(name)
+
   /** Gets the DTS for the JS/TS  of compiling your editor's code */
   const getDTSForCode = async () => {
-    const result = await getEmitResult()
-    return result.outputFiles.find((o: any) => o.name.endsWith(".d.ts"))!.text
+    const result = await getEmitResult(/*emitOnlyDtsFiles*/ undefined, /*forceDtsEmit*/ true)
+    return result.outputFiles.find((o: any) => isDtsFile(o.name))?.text || ""
   }
+
 
   const getWorkerProcess = async (): Promise<TypeScriptWorker> => {
     const worker = await getWorker()
@@ -322,7 +335,7 @@ export const createTypeScriptSandbox = (
 
   const getDomNode = () => editor.getDomNode()!
   const getModel = () => editor.getModel()!
-  const getText = () => getModel().getValue()
+  const getText = () => getModel().getValue() || ""
   const setText = (text: string) => getModel().setValue(text)
 
   const setupTSVFS = async (fsMapAdditions?: Map<string, string>) => {

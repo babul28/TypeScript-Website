@@ -1,3 +1,5 @@
+// The CSS Vars live in main.scss
+
 $ts-main-blue-color: #3178c6;
 $ts-main-blue-darker-color: #235a97;
 $ts-main-blue-lighter-color: #358ef1;
@@ -23,6 +25,8 @@ $ts-bg-selection-grey: #4e4e4f;
 $ts-muted-red: #c63131;
 $ts-muted-green: #086f56;
 $ts-muted-purple: #4e086f;
+
+$ts-sidebar-link: #2866a9;
 
 $screen-xs: 480px;
 $font-code: var(--code-font);

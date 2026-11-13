@@ -1,7 +1,30 @@
 import { CompilerOptionName } from "../data/_types";
-import * as remark from "remark";
-import * as remarkHTML from "remark-html";
-import * as ts from "typescript";
+import remark from "remark";
+// @ts-ignore - no types available
+import remarkHTML from "remark-html";
+import ts from "typescript-for-docs";
+
+declare module "typescript-for-docs" {
+  const optionDeclarations: CommandLineOption[];
+  const optionsForWatch: CommandLineOption[];
+  const typeAcquisitionDeclarations: CommandLineOption[];
+  const defaultInitCompilerOptions: ts.CompilerOptions;
+}
+
+export interface CommandLineOption {
+  name: string;
+  type:
+  | "string"
+  | "number"
+  | "boolean"
+  | "object"
+  | "list"
+  | Map<string, number | string>;
+  defaultValueDescription?: string | number | boolean | ts.DiagnosticMessage;
+  category?: ts.DiagnosticMessage;
+  strictFlag?: true;
+  element: CommandLineOption;
+}
 
 /**
  * Changes to these rules should be reflected in the following files:
@@ -21,7 +44,6 @@ export const denyList: CompilerOptionName[] = [
   "locale",
   "clean",
   "dry",
-  "enableAutoDiscovery",
 ];
 
 /** Things we should document, but really want to help move people away from */
@@ -46,28 +68,27 @@ export const watchOptionCompilerOptNames: string[] = ts.optionsForWatch.map((c) 
 const common = ts.commonOptionsWithBuild;
 // @ts-ignore
 export const buildOptionCompilerOptNames: string[] = ts.buildOpts
-  .filter((c) => !common.includes(c))
-  .map((c) => c.name);
+  .filter((c: any) => !common.includes(c))
+  .map((c: any) => c.name);
 
 export const rootOptNames = ["files", "extends", "include", "exclude", "references"];
 
 /** You should use this! They are off by default */
-export const recommended: CompilerOptionName[] = [
-  "strict",
-  "forceConsistentCasingInFileNames",
-  "alwaysStrict",
-  "strictNullChecks",
-  "strictBindCallApply",
-  "strictFunctionTypes",
-  "strictPropertyInitialization",
-  "noImplicitThis",
-  "noImplicitAny",
-  "esModuleInterop",
-  "skipLibCheck",
+export const recommended = [
+  // Options enabled by --init
+  ...Object.entries(ts.defaultInitCompilerOptions)
+    .filter(([, value]) => value === true)
+    .map(([name]) => name),
+  // Options enabled by --strict
+  ...ts.optionDeclarations
+    .filter((option) => option.strictFlag)
+    .map((option) => option.name),
+  // Not included in --init yet:
+  // https://github.com/microsoft/TypeScript/issues/44524#:~:text=--init%20should%20include%20it%20once%20the%20ecosystem%20catches%20up.
   "exactOptionalPropertyTypes",
 ];
 
-type RootProperties = "files" | "extends" | "include" | "exclude";
+type RootProperties = "files" | "extends" | "include" | "exclude" | "references";
 type WatchProperties =
   | "force"
   | "watchFile"
@@ -94,6 +115,7 @@ export const relatedTo: [AnOption, AnOption[]][] = [
       "alwaysStrict",
       "strictNullChecks",
       "strictBindCallApply",
+      "strictBuiltinIteratorReturn",
       "strictFunctionTypes",
       "strictPropertyInitialization",
       "noImplicitAny",
@@ -104,6 +126,7 @@ export const relatedTo: [AnOption, AnOption[]][] = [
   ["alwaysStrict", ["strict"]],
   ["strictNullChecks", ["strict"]],
   ["strictBindCallApply", ["strict"]],
+  ["strictBuiltinIteratorReturn", ["strict"]],
   ["strictFunctionTypes", ["strict"]],
   ["strictPropertyInitialization", ["strict"]],
   ["noImplicitAny", ["strict"]],
@@ -147,8 +170,11 @@ export const relatedTo: [AnOption, AnOption[]][] = [
   ["declarationDir", ["declaration"]],
   ["emitDeclarationOnly", ["declaration"]],
 
-  ["moduleResolution", ["module"]],
-  ["module", ["moduleResolution"]],
+  ["module", ["moduleResolution", "esModuleInterop", "allowImportingTsExtensions", "allowArbitraryExtensions", "resolveJsonModule"]],
+  ["moduleResolution", ["module", "paths", "baseUrl", "rootDirs", "moduleSuffixes", "customConditions", "resolvePackageJsonExports", "resolvePackageJsonImports"]],
+  ["customConditions", ["moduleResolution", "resolvePackageJsonExports", "resolvePackageJsonImports"]],
+  ["resolvePackageJsonExports", ["moduleResolution", "customConditions", "resolvePackageJsonImports"]],
+  ["resolvePackageJsonImports", ["moduleResolution", "customConditions", "resolvePackageJsonExports"]],
 
   ["jsx", ["jsxFactory", "jsxFragmentFactory", "jsxImportSource"]],
   ["jsxFactory", ["jsx", "jsxFragmentFactory", "jsxImportSource"]],
@@ -158,7 +184,9 @@ export const relatedTo: [AnOption, AnOption[]][] = [
   ["suppressImplicitAnyIndexErrors", ["noImplicitAny"]],
 
   ["listFiles", ["explainFiles"]],
-  ["preserveValueImports", ["isolatedModules", "importsNotUsedAsValues"]]
+
+  ["preserveValueImports", ["isolatedModules", "importsNotUsedAsValues", "verbatimModuleSyntax"]],
+  ["importsNotUsedAsValues", ["preserveValueImports", "verbatimModuleSyntax"]],
 ];
 
 /**
@@ -168,113 +196,165 @@ export const relatedTo: [AnOption, AnOption[]][] = [
 
 function trueIf(name: string) {
   return [
-    `\`true\` if [\`${name}\`](#${name}),`,
+    `\`true\` if [\`${name}\`](#${name});`,
     "`false` otherwise.",
   ];
 }
 
-// Number/boolean options without explicit default are 0/false
-const defaultDefaults = { number: "0", boolean: "false" };
 export const defaultsForOptions = {
   ...Object.fromEntries(
-    ts.optionDeclarations
-      .filter(
-        (option) =>
-          ("defaultValueDescription" in option &&
-            option.defaultValueDescription !== "n/a") ||
-          option.type in defaultDefaults
-      )
-      .map((option) => [
-        option.name,
-        !("defaultValueDescription" in option) ||
-        option.defaultValueDescription === "n/a"
-          ? defaultDefaults[option.type]
-          : typeof option.defaultValueDescription === "string"
-          ? option.defaultValueDescription
-          : option.defaultValueDescription.message,
-      ])
+    ts.optionDeclarations.map((option) => [
+      option.name,
+      typeof option.defaultValueDescription === "object"
+        ? option.defaultValueDescription.message
+        : formatDefaultValue(
+          option.defaultValueDescription,
+          option.type === "list" ? option.element.type : option.type
+        ),
+    ])
   ),
   allowSyntheticDefaultImports: [
-    "`true` if [`module`](#module) is `system`, or [`esModuleInterop`](#esModuleInterop) and [`module`](#module) is not `es6`/`es2015` or `esnext`,",
+    "`true` if [`esModuleInterop`](#esModuleInterop) is enabled, [`module`](#module) is `system`, or [`moduleResolution`](#module-resolution) is `bundler`;",
     "`false` otherwise.",
   ],
   alwaysStrict: trueIf("strict"),
   declaration: trueIf("composite"),
+  esModuleInterop: [
+    "`true` if [`module`](#module) is `node16`, `nodenext`, or `preserve`;",
+    "`false` otherwise.",
+  ],
   exclude: [
     "node_modules",
     "bower_components",
     "jspm_packages",
     "[`outDir`](#outDir)",
   ],
-  include: ["`[]` if [`files`](#files) is specified,", "`**` otherwise."],
+  include: ["`[]` if [`files`](#files) is specified;", "`**/*` otherwise."],
   incremental: trueIf("composite"),
+  isolatedModules: trueIf("verbatimModuleSyntax"),
   jsxFactory: "React.createElement",
   locale: "Platform specific.",
   module: [
-    "`CommonJS` if [`target`](#target) is `ES3` or `ES5`,",
+    "`CommonJS` if [`target`](#target) is `ES5`;",
     "`ES6`/`ES2015` otherwise.",
   ],
   moduleResolution: [
-    "`Classic` if [`module`](#module) is `AMD`, `UMD`, `System` or `ES6`/`ES2015`,",
-    "Matches if [`module`](#module) is `node12` or `nodenext`,",
-    "`Node` otherwise.",
+    "`Node10` if [`module`](#module) is `CommonJS`;",
+    "`Node16` if [`module`](#module) is `Node16`, `Node18`, or `Node20`;",
+    "`NodeNext` if [`module`](#module) is `NodeNext`;",
+    "`Bundler` if [`module`](#module) is `Preserve`;",
+    "`Classic` otherwise.",
   ],
-  newLine: "Platform specific.",
+  newLine: "`lf`",
   noImplicitAny: trueIf("strict"),
   noImplicitThis: trueIf("strict"),
-  preserveConstEnums: "false",
+  preserveConstEnums: trueIf("isolatedModules"),
   reactNamespace: "React",
+  resolvePackageJsonExports: [
+    "`true` when [`moduleResolution`](#moduleResolution) is `node16`, `nodenext`, or `bundler`;",
+    "otherwise `false`",
+  ],
+  resolvePackageJsonImports: [
+    "`true` when [`moduleResolution`](#moduleResolution) is `node16`, `nodenext`, or `bundler`;",
+    "otherwise `false`",
+  ],
   rootDir: "Computed from the list of input files.",
   rootDirs: "Computed from the list of input files.",
   strictBindCallApply: trueIf("strict"),
+  strictBuiltinIteratorReturn: trueIf("strict"),
   strictFunctionTypes: trueIf("strict"),
   useUnknownInCatchVariables: trueIf("strict"),
   strictPropertyInitialization: trueIf("strict"),
   strictNullChecks: trueIf("strict"),
-  target: "ES3",
+  target: [
+    "`es2023` if [`module`](#module) is `node20`;",
+    "`esnext` if [`module`](#module) is `nodenext`;",
+    "`ES5` otherwise.",
+  ],
   useDefineForClassFields: [
-    "`true` if [`target`](#target) is `ES2022` or higher, including `ESNext`,",
+    "`true` if [`target`](#target) is `ES2022` or higher, including `ESNext`;",
     "`false` otherwise.",
   ],
+  allowImportingTsExtensions: trueIf("rewriteRelativeImportExtensions"),
 };
+
+function formatDefaultValue(
+  defaultValue: CommandLineOption["defaultValueDescription"],
+  type: CommandLineOption["type"]
+) {
+  if (defaultValue === undefined || typeof type !== "object")
+    return defaultValue;
+  // e.g. ScriptTarget.ES2015 -> "es6/es2015"
+  const synonyms = [...type]
+    .filter(([, value]) => value === defaultValue)
+    .map(([name]) => name);
+  return synonyms.length > 1
+    ? synonyms.map((name) => `\`${name}\``).join("/")
+    : synonyms[0];
+}
 
 export const allowedValues = {
   ...Object.fromEntries(
-    [...ts.optionDeclarations, ...ts.optionsForWatch]
-      .filter((option) => typeof option.type === "object")
-      .map((option) => {
-        // Group and format synonyms: `es6`/`es2015`
-        const byValue: { [value: number]: string[] } = {};
-        for (const [name, value] of option.type instanceof Map
-          ? option.type.entries()
-          : Object.entries(option.type)) {
-          (byValue[value] ||= []).push(name);
-        }
-        return [
-          option.name,
-          Object.values(byValue).map((synonyms) =>
-            synonyms.length > 1
-              ? synonyms.map((name) => `\`${name}\``).join("/")
-              : synonyms[0]
-          ),
-        ];
-      })
+    [...ts.optionDeclarations, ...ts.optionsForWatch].map((option) => [
+      option.name,
+      formatAllowedValues(
+        option.type === "list" ? option.element.type : option.type
+      ),
+    ])
   ),
   jsxFactory: ["Any identifier or dotted identifier."],
+  lib: undefined,
 };
 
+function formatAllowedValues(type: CommandLineOption["type"]) {
+  if (typeof type !== "object") return;
+  // Group and format synonyms: `es6`/`es2015`
+  const inverted: { [value: string]: string[] } = {};
+  for (const [name, value] of type) {
+    (inverted[value] ||= []).push(name);
+  }
+  return Object.values(inverted).map((synonyms) =>
+    synonyms.length > 1
+      ? synonyms.map((name) => `\`${name}\``).join("/")
+      : synonyms[0]
+  );
+}
+
 export const releaseToConfigsMap: { [key: string]: AnOption[] } = {
+  "5.7": ["rewriteRelativeImportExtensions"],
+  "5.6": ["strictBuiltinIteratorReturn", "noUncheckedSideEffectImports", "noCheck"],
+  "5.5": ["isolatedDeclarations"],
+  "5.0": [
+    "allowArbitraryExtensions",
+    "allowImportingTsExtensions",
+    "customConditions",
+    "resolvePackageJsonExports",
+    "resolvePackageJsonImports",
+    "verbatimModuleSyntax",
+  ],
+  "4.7": ["moduleDetection", "moduleSuffixes"],
   "4.5": ["preserveValueImports"],
   "4.4": ["exactOptionalPropertyTypes", "useUnknownInCatchVariables"],
   "4.3": ["noImplicitOverride"],
-  "4.2": ["noPropertyAccessFromIndexSignature", "explainFiles"],
-  "4.1": ["jsxImportSource", "noUncheckedIndexedAccess", "disableFilenameBasedTypeAcquisition"],
+  "4.2": [
+    "noPropertyAccessFromIndexSignature",
+    "explainFiles",
+    "excludeDirectories",
+    "excludeFiles",
+  ],
+  "4.1": [
+    "generateTrace",
+    "jsxImportSource",
+    "noUncheckedIndexedAccess",
+    "disableFilenameBasedTypeAcquisition",
+  ],
   "4.0": ["jsxFragmentFactory", "disableReferencedProjectLoad"],
   "3.8": [
     "assumeChangesOnlyAffectDirectDependencies",
     "importsNotUsedAsValues",
     "disableSolutionSearching",
     "fallbackPolling",
+    "synchronousWatchDirectory",
     "watchDirectory",
     "watchFile",
   ],
@@ -286,38 +366,88 @@ export const releaseToConfigsMap: { [key: string]: AnOption[] } = {
   "3.5": ["allowUmdGlobalAccess"],
   "3.4": ["incremental", "tsBuildInfoFile"],
   "3.2": ["strictBindCallApply", "showConfig"],
-  "3.0": ["composite", "build"],
-  "2.9": ["keyofStringsOnly", "declarationMap"],
-  "2.8": ["emitDeclarationOnly"],
+  "3.0": ["composite", "references"],
+  "2.9": ["declarationMap", "keyofStringsOnly", "resolveJsonModule"],
+  "2.8": ["emitDeclarationOnly", "preserveWatchOutput"],
   "2.7": ["strictPropertyInitialization", "esModuleInterop"],
   "2.6": ["strictFunctionTypes"],
-  "2.4": ["noStrictGenericChecks"],
+  "2.5": ["noStrictGenericChecks", "preserveSymlinks"],
   "2.3": ["strict", "downlevelIteration", "init", "checkJs"],
-  "2.2": ["jsx"],
-  "2.1": ["extends", "alwaysStrict"],
+  "2.2": ["jsxFactory", "plugins"],
+  "2.1": ["extends", "alwaysStrict", "importHelpers"],
   "2.0": [
+    "baseUrl",
     "declarationDir",
-    "skipLibCheck",
+    "disableSizeLimit",
+    "exclude",
+    "extendedDiagnostics",
+    "include",
+    "lib",
+    "listEmittedFiles",
+    "maxNodeModuleJsDepth",
+    "noImplicitThis",
     "noUnusedLocals",
     "noUnusedParameters",
-    "lib",
-    "strictNullChecks",
-    "noImplicitThis",
+    "paths",
     "rootDirs",
+    "skipLibCheck",
+    "strictNullChecks",
     "traceResolution",
-    "include",
+    "types",
+    "typeRoots",
   ],
   "1.8": [
     "allowJs",
     "allowSyntheticDefaultImports",
     "allowUnreachableCode",
     "allowUnusedLabels",
+    "forceConsistentCasingInFileNames",
     "noImplicitReturns",
+    "noImplicitUseStrict",
     "noFallthroughCasesInSwitch",
+    "pretty",
+    "reactNamespace",
   ],
-  "1.5": ["inlineSourceMap", "noEmitHelpers", "newLine", "inlineSources", "rootDir"],
-  "1.4": ["noEmitOnError"],
-  "1.0": ["declaration", "target", "module", "outFile"],
+  "1.6": [
+    "jsx",
+    "moduleResolution",
+    "outFile",
+    "skipDefaultLibCheck",
+    "suppressExcessPropertyErrors",
+  ],
+  "1.5": [
+    "emitDecoratorMetadata",
+    "experimentalDecorators",
+    "files",
+    "inlineSourceMap",
+    "inlineSources",
+    "isolatedModules",
+    "listFiles",
+    "newLine",
+    "noEmit",
+    "noEmitHelpers",
+    "rootDir",
+    "stripInternal",
+  ],
+  "1.4": ["noEmitOnError", "preserveConstEnums", "suppressImplicitAnyIndexErrors"],
+  "1.0": [
+    "charset",
+    "declaration",
+    "diagnostics",
+    "emitBOM",
+    "mapRoot",
+    "module",
+    "noErrorTruncation",
+    "noImplicitAny",
+    "noLib",
+    "noResolve",
+    "out",
+    "outDir",
+    "removeComments",
+    "sourceMap",
+    "sourceRoot",
+    "target",
+  ],
 };
 
 export const additionalOptionDescriptors: Record<string, { categoryCode: number }> = {
@@ -327,18 +457,35 @@ export const additionalOptionDescriptors: Record<string, { categoryCode: number 
 };
 
 /** When a particular compiler flag (or CLI command...) was added  */
-export const configToRelease = {};
+export const configToRelease: Record<string, string> = {};
 Object.keys(releaseToConfigsMap).forEach((v) => {
   releaseToConfigsMap[v].forEach((key) => {
     configToRelease[key] = v;
   });
 });
 
-export const parseMarkdown = (value: string | string[]) =>
+export const parseMarkdown = (value: string | string[]): string =>
   Array.isArray(value)
     ? `<ul>${value
-        .map((element) => `<li>${parseMarkdown(element)}</li>`)
-        .join("")}</ul>`
+      .map((element: string) => `<li>${parseMarkdown(element)}</li>`)
+      .join("")}</ul>`
     : remark()
-        .use(remarkHTML)
-        .processSync(value?.replace(/^[-.0-9_a-z]+$/i, "`$&`"));
+      .use(remarkHTML)
+      .processSync(String(value).replace(/^[-.0-9_a-z]+$/i, "`$&`"))
+      .toString();
+
+type MarkdownNode = {
+  type: string;
+  value?: unknown;
+  alt?: unknown;
+  children?: MarkdownNode[];
+};
+
+const markdownNodeToPlainText = (node: MarkdownNode): string => {
+  if (node.type === "image" && typeof node.alt === "string") return node.alt;
+  if (typeof node.value === "string") return node.value;
+  return node.children?.map(markdownNodeToPlainText).join("") ?? "";
+};
+
+export const parseMarkdownToPlainText = (value: string): string =>
+  markdownNodeToPlainText(remark().parse(value) as MarkdownNode);
